@@ -1,0 +1,7 @@
+pytest
+pytest-homeassistant-custom-component
+pytest-cov
+pytest-asyncio
+aresponses
+ruff
+pre-commit

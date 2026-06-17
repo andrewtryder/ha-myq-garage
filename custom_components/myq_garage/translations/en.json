@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MyQ Garage Configuration",
+        "description": "Please enter your MyQ API URL and API Key.",
+        "data": {
+          "url": "API URL",
+          "api_key": "API Key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the MyQ API.",
+      "invalid_auth": "Invalid API Key or URL.",
+      "unknown": "Unexpected error occurred."
+    }
+  }
+}

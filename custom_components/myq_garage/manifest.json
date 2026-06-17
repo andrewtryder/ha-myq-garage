@@ -1,0 +1,14 @@
+{
+  "domain": "myq_garage",
+  "name": "MyQ Garage",
+  "codeowners": [
+    "@andrewtryder"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/andrewtryder/ha-myq-garage",
+  "integration_type": "device",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/andrewtryder/ha-myq-garage/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}
