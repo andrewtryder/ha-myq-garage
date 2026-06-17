@@ -2,6 +2,9 @@
 
 This is a custom component for Home Assistant that integrates with a custom MyQ Garage API.
 
+## Description
+This integration provides a Cover entity to control and monitor a garage door via a custom MyQ API endpoint.
+
 ## Installation
 
 ### HACS (Recommended)

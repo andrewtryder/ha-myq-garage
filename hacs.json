@@ -1,4 +1,8 @@
 {
   "name": "MyQ Garage",
-  "content_in_root": false
+  "content_in_root": false,
+  "render_readme": true,
+  "issue_tracker": "https://github.com/andrewtryder/ha-myq-garage/issues",
+  "zip_release": false,
+  "iot_class": "Cloud Polling"
 }
