@@ -5,3 +5,4 @@ pytest-asyncio
 aresponses
 ruff
 pre-commit
+aioresponses
