@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/andrewtryder/ha-myq-garage/compare/v1.0.0...v1.0.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* prevent duplicate config entries via unique_id ([595667f](https://github.com/andrewtryder/ha-myq-garage/commit/595667f4963609fe08dc04bc441b0c476ca1f6ae))
+
 ## 1.0.0 (2026-06-18)
 
 
