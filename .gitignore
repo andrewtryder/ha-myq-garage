@@ -218,6 +218,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Local Home Assistant Docker dev environment
+ha-dev/config/.storage/**
 ha-dev/config/.storage/
 ha-dev/config/.ha_run.lock
 ha-dev/config/home-assistant.log*
