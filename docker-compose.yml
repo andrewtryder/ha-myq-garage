@@ -1,0 +1,24 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: ha-myq-garage-dev
+    volumes:
+      - ./ha-dev/config:/config
+      - ./custom_components/myq_garage:/config/custom_components/myq_garage:ro
+    ports:
+      - "8123:8123"
+    depends_on:
+      mock-api:
+        condition: service_started
+    restart: unless-stopped
+
+  mock-api:
+    image: python:3.12-slim
+    container_name: ha-myq-garage-mock-api
+    working_dir: /app
+    volumes:
+      - ./ha-dev/mock_api:/app:ro
+    command: >
+      sh -c "pip install --no-cache-dir -q -r requirements.txt &&
+             python server.py"
+    restart: unless-stopped

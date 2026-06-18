@@ -1,9 +1,14 @@
+<p align="center">
+  <img src="custom_components/myq_garage/brand/icon.png" alt="MyQ Garage" width="128">
+</p>
+
 # MyQ Garage Custom Component for Home Assistant
 
-This is a custom component for Home Assistant that integrates with a custom MyQ Garage API.
+This is a custom component for Home Assistant that integrates with my other component for this,
+a Cloudflare Worker that works with the MyQ notifications via email.
 
 ## Description
-This integration provides a Cover entity to control and monitor a garage door via a custom MyQ API endpoint.
+This integration provides a Cover entity to control and monitor the MyQ Garage Door Opener status.
 
 ## Installation
 

@@ -6,7 +6,7 @@
       "extra-files": [
         {
           "type": "json",
-          "path": "custom_components/smart_oil_gauge/manifest.json",
+          "path": "custom_components/myq_garage/manifest.json",
           "jsonpath": "$.version"
         }
       ]
