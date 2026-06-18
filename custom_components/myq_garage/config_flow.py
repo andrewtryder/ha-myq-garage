@@ -4,18 +4,26 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import MyQGarageAuthError, MyQGarageClient, MyQGarageConnectionError
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _normalize_url(url: str) -> str:
+    """Normalize the API URL for use as a unique config entry ID."""
+    parsed = urlparse(url.strip())
+    path = parsed.path.rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
+
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -43,12 +51,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> config_entries.ConfigFlowResult:
         """Handle the initial step."""
         if user_input is None:
             return self.async_show_form(
                 step_id="user", data_schema=STEP_USER_DATA_SCHEMA
             )
+
+        await self.async_set_unique_id(_normalize_url(user_input[CONF_URL]))
+        self._abort_if_unique_id_configured()
 
         errors = {}
 
