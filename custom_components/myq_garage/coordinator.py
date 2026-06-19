@@ -22,6 +22,7 @@ class MyQGarageDataUpdateCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]
         self,
         hass: HomeAssistant,
         client: MyQGarageClient,
+        update_interval: timedelta,
     ) -> None:
         """Initialize."""
         self.client = client
@@ -29,7 +30,7 @@ class MyQGarageDataUpdateCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(minutes=1),
+            update_interval=update_interval,
         )
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
