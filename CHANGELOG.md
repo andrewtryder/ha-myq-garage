@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.0.1...v1.1.0) (2026-06-19)
+
+
+### Features
+
+* add configurable scan interval via options flow ([f6486d1](https://github.com/andrewtryder/ha-myq-garage/commit/f6486d1d2fad56d3aad69d64718c621926c9eebf))
+* add configurable scan interval via options flow ([5214ff7](https://github.com/andrewtryder/ha-myq-garage/commit/5214ff7e34195224490e4015ed66f96cd662beb5))
+
 ## [1.0.1](https://github.com/andrewtryder/ha-myq-garage/compare/v1.0.0...v1.0.1) (2026-06-18)
 
 
