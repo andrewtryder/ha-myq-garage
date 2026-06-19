@@ -27,7 +27,7 @@ If you do not already have the API running, open an [issue](https://github.com/a
 
 ## What it does
 
-This integration provides **read-only** Cover entities that report garage door open/closed status. It polls your API every minute. Open/close commands are **not** supported.
+This integration provides **read-only** Cover entities that report garage door open/closed status. It polls your API every 30 seconds by default. Open/close commands are **not** supported.
 
 ## Installation
 
@@ -51,6 +51,8 @@ When configuring the integration, you will be prompted for:
 - **API Key**: The Bearer token your API expects in the `Authorization` header.
 
 Only one config entry is allowed per API URL.
+
+The integration polls your API every **30 seconds** by default. To change this, go to **Settings → Devices & Services → MyQ Garage → Configure** and set **Scan interval (seconds)** (allowed range: 10–3600).
 
 ## Local Development
 

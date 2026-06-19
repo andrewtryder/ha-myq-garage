@@ -15,5 +15,19 @@
       "invalid_auth": "Invalid API Key or URL.",
       "unknown": "Unexpected error occurred."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MyQ Garage Options",
+        "description": "Configure how often Home Assistant polls your MyQ Garage API.",
+        "data": {
+          "scan_interval_seconds": "Scan interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_scan_interval": "Scan interval must be between 10 and 3600 seconds."
+    }
   }
 }
