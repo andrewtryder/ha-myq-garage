@@ -40,6 +40,17 @@ python_version = "3.14"
 pretty = true
 show_error_codes = true
 warn_unused_configs = true
-ignore_missing_imports = true
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+disallow_untyped_defs = true
 check_untyped_defs = true
 files = ["custom_components/myq_garage"]
+
+[[tool.mypy.overrides]]
+module = [
+    "homeassistant.*",
+    "voluptuous.*",
+    "aiohttp.*",
+]
+ignore_missing_imports = true
