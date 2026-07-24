@@ -10,7 +10,7 @@ updates:
   # After Dependabot merges a requirements_test.txt change, regenerate
   # requirements_test.lock.txt with:
   #   uv pip compile requirements_test.txt -o requirements_test.lock.txt \
-  #     --python-version 3.14 --python-platform linux
+  #     --python-version 3.14 --python-platform linux --generate-hashes
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
