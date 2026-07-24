@@ -1,2 +1,3 @@
-# No runtime dependencies beyond Home Assistant core and the published
-# myq-garage-api client (pinned in custom_components/myq_garage/manifest.json).
+# No runtime dependencies beyond Home Assistant core.
+# Integration-owned client/models ship under custom_components/myq_garage/
+# and are installed with the HACS custom component (manifest requirements: []).
