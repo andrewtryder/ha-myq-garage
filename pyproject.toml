@@ -5,7 +5,7 @@ addopts = "--cov=custom_components/myq_garage --cov-report=term-missing"
 pythonpath = ["."]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
