@@ -40,13 +40,19 @@ class InvalidURLError(Exception):
     """Raised when the configured API URL is not usable."""
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
 def _normalize_url(url: str) -> str:
     """Validate and normalize the API base URL.
 
     Raises InvalidURLError if the URL does not use http/https, has no
-    hostname, or embeds credentials. The URL is never used as a config
-    entry unique ID (see async_step_user), only for validation and
-    duplicate-entry detection.
+    hostname, embeds credentials, or carries a query string or fragment
+    (which would otherwise be silently dropped when building API request
+    URLs). The hostname is lowercased and a redundant default port
+    (``:80`` for http, ``:443`` for https) is stripped, so equivalent URLs
+    normalize identically for duplicate-entry detection. This normalized
+    form is also what gets stored as the entry's configured URL.
     """
     parsed = urlparse(url.strip())
     if parsed.scheme not in ("http", "https"):
@@ -55,9 +61,25 @@ def _normalize_url(url: str) -> str:
         raise InvalidURLError("URL must include a hostname")
     if parsed.username or parsed.password:
         raise InvalidURLError("URL must not contain embedded credentials")
+    if parsed.query or parsed.fragment:
+        raise InvalidURLError("URL must not contain a query string or fragment")
+
+    try:
+        port = parsed.port
+    except ValueError as err:
+        raise InvalidURLError("URL contains an invalid port") from err
+
+    hostname = parsed.hostname.lower()
+    if ":" in hostname:  # IPv6 literal
+        hostname = f"[{hostname}]"
+
+    if port is not None and port != _DEFAULT_PORTS[parsed.scheme]:
+        netloc = f"{hostname}:{port}"
+    else:
+        netloc = hostname
 
     path = parsed.path.rstrip("/")
-    return f"{parsed.scheme}://{parsed.netloc}{path}"
+    return f"{parsed.scheme}://{netloc}{path}"
 
 
 def _user_data_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
@@ -195,8 +217,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if self._find_duplicate_entry(normalized_url) is not None:
                     return self.async_abort(reason="already_configured")
 
+                # Validate against the normalized URL so the entry is created
+                # (and the companion API queried) using the exact form that
+                # will be stored and used for subsequent requests.
+                validated_input = {**user_input, CONF_URL: normalized_url}
                 try:
-                    info = await validate_input(self.hass, user_input)
+                    info = await validate_input(self.hass, validated_input)
                 except MyQGarageConnectionError:
                     errors["base"] = "cannot_connect"
                 except MyQGarageAuthError:
@@ -208,7 +234,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if info["stable_id"] is not None:
                         await self.async_set_unique_id(info["stable_id"])
                         self._abort_if_unique_id_configured()
-                    return self.async_create_entry(title=info["title"], data=user_input)
+                    return self.async_create_entry(
+                        title=info["title"], data=validated_input
+                    )
 
         return self.async_show_form(
             step_id="user", data_schema=_user_data_schema(user_input), errors=errors
@@ -253,7 +281,25 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if stable_id is not None:
                     update_kwargs["unique_id"] = stable_id
 
-                return self.async_update_reload_and_abort(reauth_entry, **update_kwargs)
+                # Use async_update_and_abort (not async_update_reload_and_abort):
+                # this integration registers an update listener, and HA fires it
+                # automatically once entry data changes below, letting it apply
+                # the new credentials to the running coordinator in place.
+                # Pairing a registered update listener with
+                # async_update_reload_and_abort's own forced reload is
+                # deprecated as of Core 2026.6 and becomes an error in 2026.12.
+                result = self.async_update_and_abort(reauth_entry, **update_kwargs)
+
+                # If the entry never finished loading (e.g. the original setup
+                # failed authentication before the update listener was
+                # registered), there is no listener to pick up this change, so
+                # explicitly ask HA to (re)load the entry now.
+                if reauth_entry.state is not config_entries.ConfigEntryState.LOADED:
+                    self.hass.config_entries.async_schedule_reload(
+                        reauth_entry.entry_id
+                    )
+
+                return result
 
         return self.async_show_form(
             step_id="reauth_confirm",

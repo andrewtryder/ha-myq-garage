@@ -5,9 +5,17 @@ addopts = """
     --cov=custom_components/myq_garage
     --cov-report=term-missing
     --cov-report=xml
-    --cov-fail-under=95
+    --cov-fail-under=96
 """
 pythonpath = ["."]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 96
+show_missing = true
+skip_covered = true
 
 [tool.ruff]
 target-version = "py314"

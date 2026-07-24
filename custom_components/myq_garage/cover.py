@@ -12,7 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import MyQGarageConfigEntry, MyQGarageDataUpdateCoordinator
 from .entity import MyQGarageEntity
-from .models import MyQGarageDevice
+from .models import MyQGarageDevice, MyQGarageDoorStatus
 
 PARALLEL_UPDATES = 0
 
@@ -53,3 +53,19 @@ class MyQGarageCover(MyQGarageEntity, CoverEntity):
         if (device := self.device) is None:
             return None
         return device.is_closed
+
+    @property
+    def is_opening(self) -> bool:
+        """Return true if the cover is opening."""
+        return (
+            self.device is not None
+            and self.device.status is MyQGarageDoorStatus.OPENING
+        )
+
+    @property
+    def is_closing(self) -> bool:
+        """Return true if the cover is closing."""
+        return (
+            self.device is not None
+            and self.device.status is MyQGarageDoorStatus.CLOSING
+        )
