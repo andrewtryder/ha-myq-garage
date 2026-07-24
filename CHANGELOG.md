@@ -6,7 +6,6 @@
 ### Features
 
 * harden post-1.2.0 migration, reauth, discovery, and CI ([2c17542](https://github.com/andrewtryder/ha-myq-garage/commit/2c17542fd54153e0b8ff7aa37773b2adbaf577b9))
-* harden post-1.2.0 migration, reauth, discovery, and CI ([aec5946](https://github.com/andrewtryder/ha-myq-garage/commit/aec59463318aea499982f03214d9a7068b5f2031))
 
 
 ### Bug Fixes
