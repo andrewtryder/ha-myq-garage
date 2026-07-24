@@ -43,7 +43,9 @@ class MyQGarageClient:
         }
         try:
             async with self.session.get(
-                f"{self.url}/devices", headers=headers, timeout=10
+                f"{self.url}/devices",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status in (401, 403):
                     raise MyQGarageAuthError("Invalid API Key")
@@ -71,7 +73,9 @@ class MyQGarageClient:
         }
         try:
             async with self.session.get(
-                f"{self.url}/info", headers=headers, timeout=10
+                f"{self.url}/info",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status in (401, 403):
                     raise MyQGarageAuthError("Invalid API Key")

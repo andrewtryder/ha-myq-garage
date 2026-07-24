@@ -11,3 +11,4 @@ pytest-asyncio
 aresponses
 ruff
 pre-commit
+mypy

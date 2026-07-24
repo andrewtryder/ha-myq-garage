@@ -1,0 +1,15 @@
+{
+  "entity": {
+    "cover": {
+      "door": {
+        "default": "mdi:garage",
+        "state": {
+          "open": "mdi:garage-open",
+          "opening": "mdi:garage-open",
+          "closed": "mdi:garage",
+          "closing": "mdi:garage"
+        }
+      }
+    }
+  }
+}

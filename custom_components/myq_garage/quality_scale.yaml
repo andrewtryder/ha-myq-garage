@@ -63,6 +63,9 @@ rules:
   discovery-update-info:
     status: exempt
     comment: Integration is not discoverable; configuration is manual.
+  entity-translations: done
+  exception-translations: done
+  icons: done
   reconfiguration-flow: done
   repair-issues: done
   stale-devices: done

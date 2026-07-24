@@ -99,5 +99,23 @@
         }
       }
     }
+  },
+  "entity": {
+    "cover": {
+      "door": {
+        "name": "Door"
+      }
+    }
+  },
+  "exceptions": {
+    "authentication_failed": {
+      "message": "Authentication failed: {error}"
+    },
+    "update_failed": {
+      "message": "Error communicating with API: {error}"
+    },
+    "invalid_api_response": {
+      "message": "Invalid API response: {error}"
+    }
   }
 }

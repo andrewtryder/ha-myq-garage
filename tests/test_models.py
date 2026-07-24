@@ -102,6 +102,15 @@ def test_parse_devices_unknown_status_defaults_safely() -> None:
     assert devices["door_1"].is_closed is None
 
 
+def test_parse_devices_non_string_status_defaults_safely() -> None:
+    """Test a non-string status is treated as unknown."""
+    devices = parse_devices(
+        [{"id": "door_1", "name": "Main Garage Door", "status": 123}]
+    )
+
+    assert devices["door_1"].status is MyQGarageDoorStatus.UNKNOWN
+
+
 def test_parse_devices_missing_name_uses_fallback() -> None:
     """Test a missing name falls back to a generic label, not the id."""
     devices = parse_devices([{"id": "door_1", "status": "closed"}])

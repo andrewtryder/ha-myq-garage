@@ -97,12 +97,41 @@ jobs:
       - name: Run Ruff Formatter Check
         run: ruff format --check .
 
+      - name: Run Mypy
+        run: mypy
+
       - name: Run Pytest
         run: PYTHONPATH=. pytest
 
       - name: Enforce 100% config_flow.py coverage
         run: |
           coverage report --include="*/config_flow.py" -m --fail-under=100
+
+  validate-workflows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSfL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar xz actionlint
+          ./actionlint -version
+
+      - name: Run actionlint
+        run: ./actionlint -color
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5 # v0.6.1
+        with:
+          advanced-security: "false"
+          online-audits: "false"
 
   validate-tests-canary:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -134,6 +163,9 @@ jobs:
 
       - name: Run Ruff Formatter Check
         run: ruff format --check .
+
+      - name: Run Mypy
+        run: mypy
 
       - name: Run Pytest
         run: PYTHONPATH=. pytest
