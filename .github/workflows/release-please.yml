@@ -15,10 +15,17 @@ concurrency:
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Prefer a GitHub App installation token (RELEASE_PLEASE_TOKEN) so
+          # release-please PR create/update events trigger the Validate
+          # workflow. The default GITHUB_TOKEN does not start new workflows
+          # from events it creates, which can leave release commits untested.
+          # Fall back to github.token for forks that have not configured the
+          # secret yet.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
@@ -11,6 +12,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .client import MyQGarageClient
 from .const import get_scan_interval_seconds
 from .coordinator import MyQGarageConfigEntry, MyQGarageDataUpdateCoordinator
+from .util import InvalidURLError, normalize_url
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.COVER]
 
@@ -73,8 +77,36 @@ async def async_migrate_entry(hass: HomeAssistant, entry: MyQGarageConfigEntry) 
     user-changeable source. Version 2 clears that unique ID; duplicate
     entries are instead prevented by comparing normalized URLs at config-flow
     time.
-    """
-    if entry.version == 1:
-        hass.config_entries.async_update_entry(entry, unique_id=None, version=2)
 
+    Version 3 normalizes the stored API URL so entries created before the
+    shared normalize_url helper receive the same canonical form as new
+    entries (lowercase host, no default port, no trailing slash). Invalid
+    legacy URLs fail migration without partially updating the entry.
+    """
+    if entry.version >= 3:
+        return True
+
+    new_data = dict(entry.data)
+    new_unique_id = entry.unique_id
+
+    if entry.version < 2:
+        new_unique_id = None
+
+    try:
+        new_data[CONF_URL] = normalize_url(entry.data[CONF_URL])
+    except InvalidURLError as err:
+        _LOGGER.error(
+            "Cannot migrate MyQ Garage config entry %s to version 3: %s (url=%r)",
+            entry.entry_id,
+            err,
+            entry.data.get(CONF_URL),
+        )
+        return False
+
+    hass.config_entries.async_update_entry(
+        entry,
+        data=new_data,
+        unique_id=new_unique_id,
+        version=3,
+    )
     return True

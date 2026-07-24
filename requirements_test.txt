@@ -1,3 +1,8 @@
+# Unpinned test/tooling dependency inputs.
+# Compile a reproducible lockfile after changing this file:
+#   uv pip compile requirements_test.txt -o requirements_test.lock.txt --python-version 3.14
+# CI pull requests install from requirements_test.lock.txt; the scheduled
+# canary job installs from this file to catch upcoming ecosystem breakages.
 pytest
 pytest-homeassistant-custom-component
 pytest-cov

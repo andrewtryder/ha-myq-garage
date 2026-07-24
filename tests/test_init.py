@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.myq_garage import async_migrate_entry
 from custom_components.myq_garage.client import (
     MyQGarageAuthError,
     MyQGarageClientError,
@@ -215,14 +216,16 @@ async def test_reauth_while_loaded_updates_in_place_without_reload(
     assert coordinator.client.api_key == "new_good_api_key"
 
 
-async def test_migrate_entry_clears_url_unique_id(hass: HomeAssistant) -> None:
-    """Test version 1 entries have their URL-based unique ID cleared."""
+async def test_migrate_entry_v1_clears_unique_id_and_normalizes_url(
+    hass: HomeAssistant,
+) -> None:
+    """Test version 1 entries clear URL unique IDs and normalize stored URLs."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=1,
-        unique_id="http://localhost:8080",
+        unique_id="HTTPS://MyQ-API.Example.com:443/",
         data={
-            "url": "http://localhost:8080",
+            "url": "HTTPS://MyQ-API.Example.com:443/",
             "api_key": "test_api_key",
         },
     )
@@ -236,8 +239,79 @@ async def test_migrate_entry_clears_url_unique_id(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
-    assert entry.version == 2
+    assert entry.version == 3
     assert entry.unique_id is None
+    assert entry.data["url"] == "https://myq-api.example.com"
+
+
+async def test_migrate_entry_v2_normalizes_url_preserves_unique_id(
+    hass: HomeAssistant,
+) -> None:
+    """Test version 2 entries normalize URLs without clearing a stable unique ID."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="installation-123",
+        data={
+            "url": "http://LocalHost:8080/",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.version == 3
+    assert entry.unique_id == "installation-123"
+    assert entry.data["url"] == "http://localhost:8080"
+
+
+async def test_migrate_entry_invalid_legacy_url_fails(hass: HomeAssistant) -> None:
+    """Test migration fails without mutating an entry that has an invalid URL."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="installation-123",
+        data={
+            "url": "https://myq-api.example.com/?token=secret",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
+    assert entry.version == 2
+    assert entry.unique_id == "installation-123"
+    assert entry.data["url"] == "https://myq-api.example.com/?token=secret"
+    assert entry.data["api_key"] == "test_api_key"
+
+
+async def test_migrate_entry_v3_is_noop(hass: HomeAssistant) -> None:
+    """Test already-migrated version 3 entries are left unchanged."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            "url": "https://myq-api.example.com",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+    assert entry.version == 3
+    assert entry.unique_id == "installation-123"
+    assert entry.data["url"] == "https://myq-api.example.com"
 
 
 async def test_reauth_flow_updates_api_key(hass: HomeAssistant) -> None:

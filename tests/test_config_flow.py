@@ -742,3 +742,54 @@ async def test_reauth_flow_wrong_account_aborts(hass: HomeAssistant) -> None:
     assert result["reason"] == "wrong_account"
     assert entry.data[CONF_API_KEY] == "bad_api_key"
     assert entry.unique_id == "installation-123"
+
+
+async def test_reauth_flow_aborts_when_adopting_duplicate_stable_id(
+    hass: HomeAssistant,
+) -> None:
+    """Test reauth refuses to adopt a stable id already owned by another entry."""
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://other-api.example.com",
+            CONF_API_KEY: "other_api_key",
+        },
+    )
+    existing.add_to_hass(hass)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert entry.unique_id is None
+
+    result = await entry.start_reauth_flow(hass)
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "good_api_key"},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.unique_id is None
+    assert entry.data[CONF_API_KEY] == "bad_api_key"
+    assert existing.unique_id == "installation-123"

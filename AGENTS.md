@@ -12,8 +12,10 @@ The core integration logic is located in `custom_components/myq_garage/`.
   - `cover.py`: Home Assistant cover entity platform.
   - `config_flow.py`: Handles the UI configuration setup for Home Assistant.
   - `coordinator.py`: Data update coordinator handling the polling.
+  - `util.py`: Shared helpers such as API URL normalization.
 - `tests/`: Unit tests using `pytest` and `pytest-homeassistant-custom-component`.
 - `pyproject.toml`: Configuration for `ruff` and `pytest`.
+- `requirements_test.lock.txt`: Locked test/tooling dependencies for reproducible CI.
 
 ## Release and Commit Conventions
 **CRITICAL:** This project uses `release-please` for automated changelog generation and version bumping.
@@ -31,9 +33,14 @@ To test changes, you can set up a local virtual environment:
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/pip install -r requirements_test.txt
+.venv/bin/pip install -r requirements_test.lock.txt
 ```
 
+`requirements_test.txt` is the unpinned input list. After changing it, regenerate the lockfile:
+```bash
+uv pip compile requirements_test.txt -o requirements_test.lock.txt --python-version 3.14
+```
+Keep the Ruff revision in `.pre-commit-config.yaml` aligned with the locked `ruff` version.
 ### Formatting and Linting (Ruff)
 This project enforces code styles and format rules using `ruff`. Run these checks locally before committing changes:
 ```bash
