@@ -18,6 +18,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .client import (
+    MyQGarageAccountVerificationError,
     MyQGarageAuthError,
     MyQGarageClient,
     MyQGarageClientError,
@@ -74,14 +75,28 @@ def _options_schema(default_scan_interval: int) -> vol.Schema:
     )
 
 
-async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
+async def validate_input(
+    hass: HomeAssistant,
+    data: dict[str, Any],
+    *,
+    require_stable_id: bool = False,
+) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Also attempts to read a stable installation id from the optional
     ``/info`` endpoint, so a config entry can be identified by something
     more durable than its configured URL when the companion API supports
-    it. If the endpoint is unsupported or unreachable, ``stable_id`` is
-    None and callers should fall back to other duplicate-entry detection.
+    it.
+
+    When ``require_stable_id`` is False (user setup and unidentified
+    legacy reauth), an unsupported or unreachable ``/info`` endpoint
+    yields ``stable_id=None`` and callers fall back to other
+    duplicate-entry detection.
+
+    When ``require_stable_id`` is True (reauth for an already-identified
+    entry), ``/info`` must return a usable installation id. Transport
+    failures propagate as connection errors; a missing, malformed, or
+    unsupported response raises ``MyQGarageAccountVerificationError``.
     """
     session = async_get_clientsession(hass)
     client = MyQGarageClient(data[CONF_URL], data[CONF_API_KEY], session)
@@ -93,9 +108,16 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     try:
         info = await client.get_info()
     except MyQGarageClientError:
+        if require_stable_id:
+            raise
         _LOGGER.debug("Could not fetch optional /info endpoint", exc_info=True)
     else:
         stable_id = extract_stable_id(info)
+
+    if require_stable_id and stable_id is None:
+        raise MyQGarageAccountVerificationError(
+            "Could not verify MyQ Garage installation identity via /info"
+        )
 
     return {"title": "MyQ Garage", "stable_id": stable_id}
 
@@ -212,12 +234,17 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             data = {**reauth_entry.data, CONF_API_KEY: user_input[CONF_API_KEY]}
+            require_stable_id = reauth_entry.unique_id is not None
             try:
-                info = await validate_input(self.hass, data)
+                info = await validate_input(
+                    self.hass, data, require_stable_id=require_stable_id
+                )
             except MyQGarageConnectionError:
                 errors["base"] = "cannot_connect"
             except MyQGarageAuthError:
                 errors["base"] = "invalid_auth"
+            except MyQGarageAccountVerificationError:
+                errors["base"] = "cannot_verify_account"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"

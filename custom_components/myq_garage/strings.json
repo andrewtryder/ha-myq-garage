@@ -26,6 +26,7 @@
     },
     "error": {
       "cannot_connect": "Failed to connect to the MyQ API.",
+      "cannot_verify_account": "Could not verify that this API key belongs to the configured MyQ Garage installation. The companion /info endpoint must be available during reauthentication for identified installations.",
       "invalid_auth": "Invalid API Key.",
       "invalid_url": "The API URL must use http or https, include a hostname, and must not contain a username or password.",
       "unknown": "Unexpected error occurred."
