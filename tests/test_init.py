@@ -141,6 +141,80 @@ async def test_setup_custom_scan_interval(hass: HomeAssistant) -> None:
         assert coordinator.update_interval == timedelta(seconds=60)
 
 
+async def test_reauth_while_loaded_updates_in_place_without_reload(
+    hass: HomeAssistant,
+) -> None:
+    """Test reauth on an already-loaded entry updates the client in place.
+
+    When the coordinator hits an auth failure on a routine (non-first)
+    refresh, HA starts a reauth flow while the entry stays loaded. Once
+    reauth succeeds, the update listener should apply the new API key to
+    the existing client/coordinator instead of the entry being reloaded.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "url": "http://localhost:8080",
+            "api_key": "good_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    coordinator = entry.runtime_data
+
+    # The API key is later revoked; a routine refresh fails authentication
+    # and starts a reauth flow without unloading the entry.
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        side_effect=MyQGarageAuthError("Invalid API Key"),
+    ):
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+
+    flows = hass.config_entries.flow.async_progress()
+    reauth_flow = next(flow for flow in flows if flow["context"]["source"] == "reauth")
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            reauth_flow["flow_id"],
+            {"api_key": "new_good_api_key"},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["api_key"] == "new_good_api_key"
+    assert entry.state is ConfigEntryState.LOADED
+    # The entry was updated in place by the update listener, not reloaded:
+    # the coordinator/client instances are unchanged and already carry the
+    # new key.
+    assert entry.runtime_data is coordinator
+    assert coordinator.client.api_key == "new_good_api_key"
+
+
 async def test_migrate_entry_clears_url_unique_id(hass: HomeAssistant) -> None:
     """Test version 1 entries have their URL-based unique ID cleared."""
     entry = MockConfigEntry(

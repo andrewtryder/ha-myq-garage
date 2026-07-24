@@ -17,6 +17,14 @@ def test_extract_stable_id_valid() -> None:
     )
 
 
+def test_extract_stable_id_strips_whitespace() -> None:
+    """Test surrounding whitespace is stripped from the stable id."""
+    assert (
+        extract_stable_id({"installation_id": "  installation-123  "})
+        == "installation-123"
+    )
+
+
 @pytest.mark.parametrize(
     "info",
     [
@@ -61,6 +69,16 @@ def test_parse_devices_missing_id_is_skipped() -> None:
     )
 
     assert set(devices) == {"door_1"}
+
+
+def test_parse_devices_strips_id_whitespace() -> None:
+    """Test surrounding whitespace on an id is stripped, not rejected."""
+    devices = parse_devices(
+        [{"id": "  door_1  ", "name": "Main Garage Door", "status": "closed"}]
+    )
+
+    assert set(devices) == {"door_1"}
+    assert devices["door_1"].id == "door_1"
 
 
 def test_parse_devices_duplicate_id_rejects_update() -> None:

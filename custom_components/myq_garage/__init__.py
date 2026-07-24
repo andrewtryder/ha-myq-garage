@@ -18,10 +18,19 @@ PLATFORMS: list[Platform] = [Platform.COVER]
 async def _async_update_listener(
     hass: HomeAssistant, entry: MyQGarageConfigEntry
 ) -> None:
-    """Handle options updates."""
-    entry.runtime_data.update_interval = timedelta(
-        seconds=get_scan_interval_seconds(entry)
-    )
+    """Handle config entry data and options updates in place.
+
+    This listener applies credential and polling-interval changes directly
+    to the running coordinator/client instead of reloading the entry, since
+    HA automatically schedules this listener whenever entry data or options
+    change (see async_update_and_abort in config_flow.py).
+    """
+    coordinator = entry.runtime_data
+    coordinator.client.url = entry.data[CONF_URL].rstrip("/")
+    coordinator.client.api_key = entry.data[CONF_API_KEY]
+    coordinator.update_interval = timedelta(seconds=get_scan_interval_seconds(entry))
+
+    await coordinator.async_request_refresh()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: MyQGarageConfigEntry) -> bool:

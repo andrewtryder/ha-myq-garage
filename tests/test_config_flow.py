@@ -56,8 +56,10 @@ async def test_config_flow_success(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "MyQ Garage"
+    # The stored URL is the normalized form (trailing slash stripped), not
+    # the raw user input.
     assert result["data"] == {
-        CONF_URL: "https://myq-api.example.com/",
+        CONF_URL: "https://myq-api.example.com",
         CONF_API_KEY: "test_api_key",
     }
     # The companion API does not (yet) support the optional /info endpoint,
@@ -264,6 +266,128 @@ async def test_config_flow_url_with_credentials_rejected(hass: HomeAssistant) ->
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_url"}
+
+
+async def test_config_flow_url_with_query_rejected(hass: HomeAssistant) -> None:
+    """Test a URL with a query string is rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_URL: "https://myq-api.example.com/api?token=x",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_url"}
+
+
+async def test_config_flow_url_with_fragment_rejected(hass: HomeAssistant) -> None:
+    """Test a URL with a fragment is rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_URL: "https://myq-api.example.com/api#section",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_url"}
+
+
+async def test_config_flow_normalizes_hostname_and_default_port(
+    hass: HomeAssistant,
+) -> None:
+    """Test the stored URL lowercases the host and drops the default port."""
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "HTTPS://MyQ-API.Example.com:443/",
+                CONF_API_KEY: "test_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_URL] == "https://myq-api.example.com"
+
+
+async def test_config_flow_url_with_invalid_port_rejected(hass: HomeAssistant) -> None:
+    """Test a URL with a non-numeric/out-of-range port is rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_URL: "https://myq-api.example.com:99999",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_url"}
+
+
+async def test_config_flow_preserves_non_default_port(hass: HomeAssistant) -> None:
+    """Test a non-default port is preserved in the normalized/stored URL."""
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "https://myq-api.example.com:8443",
+                CONF_API_KEY: "test_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_URL] == "https://myq-api.example.com:8443"
+
+
+async def test_config_flow_normalizes_ipv6_hostname(hass: HomeAssistant) -> None:
+    """Test an IPv6 literal host normalizes with brackets preserved."""
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "http://[::1]:8080",
+                CONF_API_KEY: "test_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_URL] == "http://[::1]:8080"
 
 
 async def test_config_flow_url_missing_hostname_rejected(hass: HomeAssistant) -> None:

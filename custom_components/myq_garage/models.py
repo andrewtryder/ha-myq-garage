@@ -58,7 +58,7 @@ def extract_stable_id(info: Any) -> str | None:
     if not isinstance(stable_id, str) or not stable_id.strip():
         return None
 
-    return stable_id
+    return stable_id.strip()
 
 
 def parse_devices(raw_devices: Any) -> dict[str, MyQGarageDevice]:
@@ -82,10 +82,11 @@ def parse_devices(raw_devices: Any) -> dict[str, MyQGarageDevice]:
             _LOGGER.warning("Skipping device record that is not an object: %r", raw)
             continue
 
-        device_id = raw.get("id")
-        if not isinstance(device_id, str) or not device_id.strip():
+        raw_device_id = raw.get("id")
+        if not isinstance(raw_device_id, str) or not raw_device_id.strip():
             _LOGGER.warning("Skipping device with missing or invalid id: %s", raw)
             continue
+        device_id = raw_device_id.strip()
 
         if device_id in devices:
             raise MyQGarageDataError(
