@@ -57,7 +57,7 @@ The integration polls your API every **30 seconds** by default. To change this, 
 ## Data updates
 
 - All device state comes from polling your companion API's `GET /devices` endpoint on the configured scan interval; there is no push/webhook support.
-- Every poll replaces the full set of known devices. If your API stops returning a device (for example, it was removed from your account), the corresponding Home Assistant entity becomes **unavailable** rather than showing a stale state.
+- Every poll replaces the full set of known devices. If your API stops returning a device (for example, it was removed from your account), the corresponding Home Assistant entity becomes **unavailable** rather than showing a stale state. If a new device appears in a later poll, a cover entity is created automatically without reloading the integration.
 - Changing the scan interval in the options flow takes effect immediately, without needing to reload the integration or restart Home Assistant.
 - If your API key is revoked or expires, Home Assistant will prompt you to reauthenticate (**Settings → Devices & Services → MyQ Garage → Reconfigure**) rather than repeatedly retrying with a bad key.
 
@@ -163,3 +163,7 @@ docker compose down
 Home Assistant runtime data (`.storage/`, databases, logs) is gitignored under `ha-dev/config/` and is created locally when you run Docker.
 
 Unit tests use `pytest` and do not require Docker. See `AGENTS.md` for linting, formatting, and test commands.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventional commits, squash-only merge guidance, Release Please token setup, and how to refresh the test dependency lockfile.

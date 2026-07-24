@@ -31,7 +31,7 @@
       "unknown": "Unexpected error occurred."
     },
     "abort": {
-      "already_configured": "This MyQ Garage API URL is already configured.",
+      "already_configured": "This MyQ Garage installation is already configured.",
       "reauth_successful": "Re-authentication was successful.",
       "wrong_account": "The provided API key belongs to a different MyQ Garage installation than the one being reauthenticated."
     }

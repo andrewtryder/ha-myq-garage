@@ -9,7 +9,8 @@ on:
     - cron: "0 0 * * *"
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,16 +18,17 @@ concurrency:
 
 jobs:
   validate-hacs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: HACS validation
         uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa # main
         with:
           category: integration
-          ignore: topics, description
 
   validate-hassfest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -34,8 +36,37 @@ jobs:
       - name: Home Assistant Validation (hassfest)
         uses: home-assistant/actions/hassfest@e3fb68ebda13d88a0d695082f471ba2c83d025fb # master
 
+  validate-release-metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check manifest version matches release-please manifest
+        run: |
+          set -euo pipefail
+          manifest_version="$(jq -r '.version' custom_components/myq_garage/manifest.json)"
+          rp_version="$(jq -r '."."' .release-please-manifest.json)"
+          echo "manifest.json version=${manifest_version}"
+          echo "release-please manifest version=${rp_version}"
+          test "${manifest_version}" = "${rp_version}"
+
+      - name: Ensure prospective release tag is unused
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--')
+        run: |
+          set -euo pipefail
+          version="$(jq -r '.version' custom_components/myq_garage/manifest.json)"
+          tag="v${version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+            echo "Release tag ${tag} already exists; refusing to validate a duplicate release."
+            exit 1
+          fi
+          echo "Release tag ${tag} is available."
+
   validate-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       matrix:
         python-version: ["3.14"]
@@ -48,8 +79,52 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements_test.lock.txt
 
-      - name: Install dependencies
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements_test.lock.txt
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
+      - name: Run Ruff Linter
+        run: ruff check .
+
+      - name: Run Ruff Formatter Check
+        run: ruff format --check .
+
+      - name: Run Pytest
+        run: PYTHONPATH=. pytest
+
+      - name: Enforce 100% config_flow.py coverage
+        run: |
+          coverage report --include="*/config_flow.py" -m --fail-under=100
+
+  validate-tests-canary:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        python-version: ["3.14"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements_test.txt
+
+      - name: Install latest dependencies (canary)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements_test.txt

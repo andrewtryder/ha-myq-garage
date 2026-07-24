@@ -176,3 +176,154 @@ def test_is_opening_and_is_closing_match_device_status() -> None:
     assert opening_cover.is_closing is False
     assert closing_cover.is_closing is True
     assert closing_cover.is_opening is False
+
+
+async def test_cover_adds_new_device_after_refresh(hass: HomeAssistant) -> None:
+    """Test a device that appears after setup gets a cover entity."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "url": "http://localhost:8080",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=[MOCK_DEVICE_DATA[0]],
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert hass.states.get("cover.main_garage_door_door")
+    assert hass.states.get("cover.side_garage_door_door") is None
+
+    coordinator = entry.runtime_data
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    assert hass.states.get("cover.main_garage_door_door")
+    assert hass.states.get("cover.side_garage_door_door")
+
+
+async def test_cover_refresh_does_not_duplicate_entities(hass: HomeAssistant) -> None:
+    """Test refreshing with the same devices does not create duplicate entities."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "url": "http://localhost:8080",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        coordinator = entry.runtime_data
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    covers = [
+        state
+        for state in hass.states.async_all("cover")
+        if state.entity_id.startswith("cover.")
+    ]
+    assert len(covers) == 2
+
+
+async def test_cover_returning_device_reuses_entity(hass: HomeAssistant) -> None:
+    """Test a removed then returning device reuses the same cover entity."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "url": "http://localhost:8080",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data
+    entity_id = "cover.side_garage_door_door"
+    original = hass.states.get(entity_id)
+    assert original
+    assert original.state == STATE_OPEN
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=[MOCK_DEVICE_DATA[0]],
+    ):
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    missing = hass.states.get(entity_id)
+    assert missing
+    assert missing.state == STATE_UNAVAILABLE
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    restored = hass.states.get(entity_id)
+    assert restored
+    assert restored.state == STATE_OPEN
+
+    covers = [
+        state
+        for state in hass.states.async_all("cover")
+        if state.entity_id.startswith("cover.")
+    ]
+    assert len(covers) == 2
+
+
+async def test_cover_entities_created_after_empty_initial_response(
+    hass: HomeAssistant,
+) -> None:
+    """Test devices that appear after an empty first poll still get entities."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "url": "http://localhost:8080",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=[],
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert hass.states.get("cover.main_garage_door_door") is None
+
+    coordinator = entry.runtime_data
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    assert hass.states.get("cover.main_garage_door_door")
+    assert hass.states.get("cover.side_garage_door_door")

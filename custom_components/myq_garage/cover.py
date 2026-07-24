@@ -7,7 +7,7 @@ from homeassistant.components.cover import (
     CoverEntity,
     CoverEntityFeature,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import MyQGarageConfigEntry, MyQGarageDataUpdateCoordinator
@@ -24,10 +24,25 @@ async def async_setup_entry(
 ) -> None:
     """Set up the MyQ Garage cover platform."""
     coordinator = entry.runtime_data
+    known_ids: set[str] = set()
 
-    async_add_entities(
-        MyQGarageCover(coordinator, device) for device in coordinator.data.values()
-    )
+    @callback
+    def _async_add_new_devices() -> None:
+        """Add cover entities for devices observed since the last call."""
+        new_devices = [
+            device
+            for device_id, device in coordinator.data.items()
+            if device_id not in known_ids
+        ]
+        if not new_devices:
+            return
+        known_ids.update(device.id for device in new_devices)
+        async_add_entities(
+            MyQGarageCover(coordinator, device) for device in new_devices
+        )
+
+    _async_add_new_devices()
+    entry.async_on_unload(coordinator.async_add_listener(_async_add_new_devices))
 
 
 class MyQGarageCover(MyQGarageEntity, CoverEntity):

@@ -6,7 +6,11 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Keep Python dependencies (requirements.txt and requirements_test.txt) up-to-date
+  # Keep Python test dependency inputs up-to-date.
+  # After Dependabot merges a requirements_test.txt change, regenerate
+  # requirements_test.lock.txt with:
+  #   uv pip compile requirements_test.txt -o requirements_test.lock.txt \
+  #     --python-version 3.14 --python-platform linux
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
