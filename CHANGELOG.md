@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.2.0...v1.3.0) (2026-07-24)
+
+
+### Features
+
+* harden post-1.2.0 migration, reauth, discovery, and CI ([2c17542](https://github.com/andrewtryder/ha-myq-garage/commit/2c17542fd54153e0b8ff7aa37773b2adbaf577b9))
+* harden post-1.2.0 migration, reauth, discovery, and CI ([aec5946](https://github.com/andrewtryder/ha-myq-garage/commit/aec59463318aea499982f03214d9a7068b5f2031))
+
+
+### Bug Fixes
+
+* drop coverage artifact upload that fails with 403 ([01223b8](https://github.com/andrewtryder/ha-myq-garage/commit/01223b86235070e8aa8a44172bdaeaaac12d3bb5))
+* regenerate test lockfile for Linux CI ([b266c9c](https://github.com/andrewtryder/ha-myq-garage/commit/b266c9cb9d9baaac11f2aaad1eacbdea2a58eff3))
+
 ## [1.2.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.1.1...v1.2.0) (2026-07-24)
 
 
