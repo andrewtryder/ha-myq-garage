@@ -1,1 +1,2 @@
-# No runtime dependencies beyond Home Assistant core.
+# No runtime dependencies beyond Home Assistant core and the published
+# myq-garage-api client (pinned in custom_components/myq_garage/manifest.json).
