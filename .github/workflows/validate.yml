@@ -62,3 +62,7 @@ jobs:
 
       - name: Run Pytest
         run: PYTHONPATH=. pytest
+
+      - name: Enforce 100% config_flow.py coverage
+        run: |
+          coverage report --include="*/config_flow.py" -m --fail-under=100
