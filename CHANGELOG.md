@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/andrewtryder/ha-myq-garage/compare/v1.1.0...v1.1.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* replace aioresponses with AsyncMock for aiohttp 3.14 ([e770369](https://github.com/andrewtryder/ha-myq-garage/commit/e7703691440f09be7e698fcce52d32015d57be16))
+* replace aioresponses with AsyncMock for aiohttp 3.14 ([b63be95](https://github.com/andrewtryder/ha-myq-garage/commit/b63be958b4ef4035002e3930978017b50b747dfb))
+
 ## [1.1.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.0.1...v1.1.0) (2026-06-19)
 
 
