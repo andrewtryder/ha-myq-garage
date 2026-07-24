@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import MyQGarageClient
@@ -68,6 +68,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: MyQGarageConfigEntry) ->
 async def async_unload_entry(hass: HomeAssistant, entry: MyQGarageConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: MyQGarageConfigEntry,
+    device_entry: dr.DeviceEntry,
+) -> bool:
+    """Allow removing devices that are no longer returned by the API.
+
+    Devices still present in the latest successful coordinator data cannot be
+    removed; once the API stops returning them they become unavailable and the
+    user may delete them from the device registry.
+    """
+    if not hasattr(config_entry, "runtime_data") or config_entry.runtime_data is None:
+        return True
+
+    return not any(
+        identifier[0] == DOMAIN and identifier[1] in config_entry.runtime_data.data
+        for identifier in device_entry.identifiers
+    )
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: MyQGarageConfigEntry) -> bool:

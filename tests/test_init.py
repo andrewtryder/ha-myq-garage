@@ -355,3 +355,60 @@ async def test_reauth_flow_updates_api_key(hass: HomeAssistant) -> None:
     assert result["reason"] == "reauth_successful"
     assert entry.data["api_key"] == "good_api_key"
     assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_remove_config_entry_device_allows_absent_device(
+    hass: HomeAssistant,
+) -> None:
+    """Users may delete devices that are no longer returned by the API."""
+    from homeassistant.helpers import device_registry as dr
+
+    from custom_components.myq_garage import async_remove_config_entry_device
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            "url": "http://localhost:8080",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    device_registry = dr.async_get(hass)
+    present = device_registry.async_get_device(identifiers={(DOMAIN, "door_1")})
+    assert present is not None
+    assert not await async_remove_config_entry_device(hass, entry, present)
+
+    # Simulate the API no longer returning the device.
+    entry.runtime_data.data = {}
+    assert await async_remove_config_entry_device(hass, entry, present)
+
+
+async def test_remove_config_entry_device_when_unloaded(
+    hass: HomeAssistant,
+) -> None:
+    """Unloaded entries allow device removal without runtime data."""
+    from homeassistant.helpers.device_registry import DeviceEntry
+
+    from custom_components.myq_garage import async_remove_config_entry_device
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            "url": "http://localhost:8080",
+            "api_key": "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    device_entry = DeviceEntry(identifiers={(DOMAIN, "door_1")})
+    assert await async_remove_config_entry_device(hass, entry, device_entry)
