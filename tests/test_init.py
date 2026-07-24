@@ -396,7 +396,6 @@ async def test_remove_config_entry_device_when_unloaded(
     hass: HomeAssistant,
 ) -> None:
     """Unloaded entries allow device removal without runtime data."""
-    from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers.device_registry import DeviceEntry
 
     from custom_components.myq_garage import async_remove_config_entry_device
