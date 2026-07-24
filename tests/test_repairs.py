@@ -1,17 +1,22 @@
 """Tests for MyQ Garage repair flows."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.myq_garage.client import MyQGarageConnectionError
-from custom_components.myq_garage.const import DOMAIN, invalid_legacy_url_issue_id
+from custom_components.myq_garage.const import (
+    CONF_SCAN_INTERVAL_SECONDS,
+    DOMAIN,
+    invalid_legacy_url_issue_id,
+)
 from custom_components.myq_garage.repairs import async_create_fix_flow
 
 MOCK_DEVICE_DATA = [
@@ -23,20 +28,29 @@ MOCK_DEVICE_DATA = [
 ]
 
 
-async def _create_migration_error_entry(hass: HomeAssistant) -> MockConfigEntry:
+async def _create_migration_error_entry(
+    hass: HomeAssistant,
+    *,
+    unique_id: str | None = "installation-123",
+    options: dict | None = None,
+    title: str = "MyQ Garage",
+) -> MockConfigEntry:
     """Create a config entry stuck in migration error with a repair issue."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,
-        unique_id="installation-123",
+        unique_id=unique_id,
+        title=title,
         data={
             CONF_URL: "https://myq-api.example.com/?token=secret",
             CONF_API_KEY: "old_api_key",
         },
+        options=options or {CONF_SCAN_INTERVAL_SECONDS: 90},
     )
     entry.add_to_hass(hass)
     assert not await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
     return entry
 
 
@@ -52,13 +66,16 @@ async def test_invalid_legacy_url_creates_repair_issue(hass: HomeAssistant) -> N
     assert issue.translation_key == "invalid_legacy_url"
 
 
-async def test_repair_flow_updates_invalid_legacy_url(hass: HomeAssistant) -> None:
-    """Repair flow migrates the entry to v3 and clears the issue."""
+async def test_repair_flow_updates_invalid_legacy_url_in_place(
+    hass: HomeAssistant,
+) -> None:
+    """Repair flow updates the existing entry and clears the issue."""
     assert await async_setup_component(hass, "repairs", {})
     await hass.async_block_till_done()
 
-    entry = await _create_migration_error_entry(hass)
-    issue_id = invalid_legacy_url_issue_id(entry.entry_id)
+    entry = await _create_migration_error_entry(hass, title="Custom Title")
+    entry_id = entry.entry_id
+    issue_id = invalid_legacy_url_issue_id(entry_id)
     flow_manager = hass.data["repairs"]["flow_manager"]
 
     with (
@@ -89,15 +106,70 @@ async def test_repair_flow_updates_invalid_legacy_url(hass: HomeAssistant) -> No
         await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert hass.config_entries.async_get_entry(entry.entry_id) is None
-    entries = hass.config_entries.async_entries(DOMAIN)
-    assert len(entries) == 1
-    new_entry = entries[0]
-    assert new_entry.version == 3
-    assert new_entry.data[CONF_URL] == "https://myq-api.example.com"
-    assert new_entry.data[CONF_API_KEY] == "good_api_key"
-    assert new_entry.unique_id == "installation-123"
+    repaired = hass.config_entries.async_get_entry(entry_id)
+    assert repaired is not None
+    assert repaired.entry_id == entry_id
+    assert repaired.version == 3
+    assert repaired.title == "Custom Title"
+    assert repaired.unique_id == "installation-123"
+    assert repaired.options[CONF_SCAN_INTERVAL_SECONDS] == 90
+    assert repaired.data[CONF_URL] == "https://myq-api.example.com"
+    assert repaired.data[CONF_API_KEY] == "good_api_key"
+    assert repaired.state is ConfigEntryState.LOADED
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_repair_flow_preserves_entity_registry_customization(
+    hass: HomeAssistant,
+) -> None:
+    """Repair keeps the same entry id so customized entity ids survive."""
+    assert await async_setup_component(hass, "repairs", {})
+    entry = await _create_migration_error_entry(hass)
+    entity_registry = er.async_get(hass)
+    entity_registry.async_get_or_create(
+        "cover",
+        DOMAIN,
+        "door_1_cover",
+        config_entry=entry,
+        suggested_object_id="main_garage_custom",
+    )
+    customized = entity_registry.async_get("cover.main_garage_custom")
+    assert customized is not None
+    assert customized.config_entry_id == entry.entry_id
+
+    flow_manager = hass.data["repairs"]["flow_manager"]
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await flow_manager.async_init(
+            DOMAIN, data={"issue_id": invalid_legacy_url_issue_id(entry.entry_id)}
+        )
+        result = await flow_manager.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "good_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    surviving = entity_registry.async_get("cover.main_garage_custom")
+    assert surviving is not None
+    assert surviving.config_entry_id == entry.entry_id
+    assert surviving.unique_id == "door_1_cover"
 
 
 async def test_repair_flow_invalid_url(hass: HomeAssistant) -> None:
@@ -119,6 +191,29 @@ async def test_repair_flow_invalid_url(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_url"}
+    assert hass.config_entries.async_get_entry(entry.entry_id) is not None
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
+
+
+async def test_repair_flow_insecure_public_http(hass: HomeAssistant) -> None:
+    """Repair flow rejects plain HTTP for public hosts."""
+    assert await async_setup_component(hass, "repairs", {})
+    entry = await _create_migration_error_entry(hass)
+    flow_manager = hass.data["repairs"]["flow_manager"]
+
+    result = await flow_manager.async_init(
+        DOMAIN, data={"issue_id": invalid_legacy_url_issue_id(entry.entry_id)}
+    )
+    result = await flow_manager.async_configure(
+        result["flow_id"],
+        {
+            CONF_URL: "http://myq-api.example.com",
+            CONF_API_KEY: "good_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "insecure_url"}
 
 
 async def test_repair_flow_connection_error(hass: HomeAssistant) -> None:
@@ -144,6 +239,7 @@ async def test_repair_flow_connection_error(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
 
 
 async def test_repair_flow_wrong_account(hass: HomeAssistant) -> None:
@@ -177,6 +273,81 @@ async def test_repair_flow_wrong_account(hass: HomeAssistant) -> None:
     assert result["errors"] == {"base": "wrong_account"}
 
 
+async def test_repair_flow_duplicate_url_aborts(hass: HomeAssistant) -> None:
+    """Repair aborts when another entry already uses the replacement URL."""
+    assert await async_setup_component(hass, "repairs", {})
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-other",
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "other_key",
+        },
+    )
+    existing.add_to_hass(hass)
+    entry = await _create_migration_error_entry(hass)
+    flow_manager = hass.data["repairs"]["flow_manager"]
+
+    result = await flow_manager.async_init(
+        DOMAIN, data={"issue_id": invalid_legacy_url_issue_id(entry.entry_id)}
+    )
+    result = await flow_manager.async_configure(
+        result["flow_id"],
+        {
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "good_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert hass.config_entries.async_get_entry(entry.entry_id) is not None
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
+
+
+async def test_repair_flow_duplicate_stable_id_aborts(hass: HomeAssistant) -> None:
+    """Repair aborts when another entry already owns the installation id."""
+    assert await async_setup_component(hass, "repairs", {})
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://other-api.example.com",
+            CONF_API_KEY: "other_key",
+        },
+    )
+    existing.add_to_hass(hass)
+    entry = await _create_migration_error_entry(hass, unique_id=None)
+    flow_manager = hass.data["repairs"]["flow_manager"]
+
+    result = await flow_manager.async_init(
+        DOMAIN, data={"issue_id": invalid_legacy_url_issue_id(entry.entry_id)}
+    )
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+    ):
+        result = await flow_manager.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "good_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
+
+
 async def test_repair_flow_entry_missing(hass: HomeAssistant) -> None:
     """Repair flow aborts when the config entry no longer exists."""
     assert await async_setup_component(hass, "repairs", {})
@@ -201,9 +372,21 @@ async def test_repair_flow_entry_missing(hass: HomeAssistant) -> None:
     assert result["reason"] == "entry_missing"
 
 
-async def test_repair_flow_recreate_failed(hass: HomeAssistant) -> None:
-    """Repair flow aborts when recreating the config entry fails."""
+async def test_repair_flow_duplicate_url_skips_unparsable_other_entry(
+    hass: HomeAssistant,
+) -> None:
+    """Duplicate URL detection ignores other entries with unparsable URLs."""
     assert await async_setup_component(hass, "repairs", {})
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-other",
+        data={
+            CONF_URL: "https://broken.example.com/?bad=1",
+            CONF_API_KEY: "other_key",
+        },
+    )
+    existing.add_to_hass(hass)
     entry = await _create_migration_error_entry(hass)
     flow_manager = hass.data["repairs"]["flow_manager"]
 
@@ -220,15 +403,8 @@ async def test_repair_flow_recreate_failed(hass: HomeAssistant) -> None:
             return_value={"installation_id": "installation-123"},
         ),
         patch(
-            "homeassistant.config_entries.ConfigEntriesFlowManager.async_init",
-            new=AsyncMock(
-                return_value={
-                    "type": FlowResultType.FORM,
-                    "flow_id": "x",
-                    "handler": DOMAIN,
-                    "step_id": "user",
-                }
-            ),
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
         ),
     ):
         result = await flow_manager.async_configure(
@@ -238,9 +414,130 @@ async def test_repair_flow_recreate_failed(hass: HomeAssistant) -> None:
                 CONF_API_KEY: "good_api_key",
             },
         )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_repair_flow_adopts_stable_id_when_missing(
+    hass: HomeAssistant,
+) -> None:
+    """Repair adopts a stable installation id when the entry lacked one."""
+    assert await async_setup_component(hass, "repairs", {})
+    entry = await _create_migration_error_entry(hass, unique_id=None)
+    flow_manager = hass.data["repairs"]["flow_manager"]
+
+    result = await flow_manager.async_init(
+        DOMAIN, data={"issue_id": invalid_legacy_url_issue_id(entry.entry_id)}
+    )
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-new"},
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await flow_manager.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "good_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.unique_id == "installation-new"
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_repair_flow_reload_raises(hass: HomeAssistant) -> None:
+    """Repair aborts when async_setup raises after the entry is updated."""
+    assert await async_setup_component(hass, "repairs", {})
+    entry = await _create_migration_error_entry(hass)
+    issue_id = invalid_legacy_url_issue_id(entry.entry_id)
+    flow_manager = hass.data["repairs"]["flow_manager"]
+
+    result = await flow_manager.async_init(DOMAIN, data={"issue_id": issue_id})
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch.object(
+            hass.config_entries,
+            "async_setup",
+            side_effect=RuntimeError("setup exploded"),
+        ),
+    ):
+        result = await flow_manager.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "good_api_key",
+            },
+        )
+        await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "recreate_failed"
+    assert result["reason"] == "reload_failed"
+    assert hass.config_entries.async_get_entry(entry.entry_id) is not None
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+
+
+async def test_repair_flow_reload_failed(hass: HomeAssistant) -> None:
+    """Repair aborts when setup fails after updating the entry, keeping it."""
+    assert await async_setup_component(hass, "repairs", {})
+    entry = await _create_migration_error_entry(hass)
+    issue_id = invalid_legacy_url_issue_id(entry.entry_id)
+    flow_manager = hass.data["repairs"]["flow_manager"]
+
+    result = await flow_manager.async_init(DOMAIN, data={"issue_id": issue_id})
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch.object(
+            hass.config_entries,
+            "async_setup",
+            return_value=False,
+        ),
+    ):
+        result = await flow_manager.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "good_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reload_failed"
+    repaired = hass.config_entries.async_get_entry(entry.entry_id)
+    assert repaired is not None
+    assert repaired.data[CONF_URL] == "https://myq-api.example.com"
+    assert repaired.version == 3
+    assert repaired.options[CONF_SCAN_INTERVAL_SECONDS] == 90
+    # Issue remains until a successful recovery.
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
 
 
 async def test_async_create_fix_flow_from_issue_id_prefix(

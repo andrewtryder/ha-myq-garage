@@ -9,7 +9,7 @@
           "api_key": "API Key"
         },
         "data_description": {
-          "url": "The base URL of your MyQ Garage companion API. Must use the http or https scheme and must not contain a username or password.",
+          "url": "The base URL of your MyQ Garage companion API. Must use HTTPS for public hosts (HTTP is only allowed for localhost and private networks) and must not contain a username or password.",
           "api_key": "The API key issued by your MyQ Garage companion API."
         }
       },
@@ -31,7 +31,7 @@
           "api_key": "API Key"
         },
         "data_description": {
-          "url": "The base URL of your MyQ Garage companion API. Must use the http or https scheme and must not contain a username or password.",
+          "url": "The base URL of your MyQ Garage companion API. Must use HTTPS for public hosts (HTTP is only allowed for localhost and private networks) and must not contain a username or password.",
           "api_key": "The API key issued by your MyQ Garage companion API."
         }
       }
@@ -41,6 +41,7 @@
       "cannot_verify_account": "Could not verify that this API key belongs to the configured MyQ Garage installation. The companion /info endpoint must be available during reauthentication for identified installations.",
       "invalid_auth": "Invalid API Key.",
       "invalid_url": "The API URL must use http or https, include a hostname, and must not contain a username or password.",
+      "insecure_url": "Plain HTTP is only allowed for localhost and private/link-local addresses. Use HTTPS for public hosts.",
       "unknown": "Unexpected error occurred."
     },
     "abort": {
@@ -80,7 +81,7 @@
               "api_key": "API Key"
             },
             "data_description": {
-              "url": "The base URL of your MyQ Garage companion API. Must use the http or https scheme and must not contain a username or password.",
+              "url": "The base URL of your MyQ Garage companion API. Must use HTTPS for public hosts (HTTP is only allowed for localhost and private networks) and must not contain a username or password.",
               "api_key": "The API key issued by your MyQ Garage companion API."
             }
           }
@@ -90,12 +91,14 @@
           "cannot_verify_account": "Could not verify that this API key belongs to the configured MyQ Garage installation.",
           "invalid_auth": "Invalid API Key.",
           "invalid_url": "The API URL must use http or https, include a hostname, and must not contain a username or password.",
+          "insecure_url": "Plain HTTP is only allowed for localhost and private/link-local addresses. Use HTTPS for public hosts.",
           "unknown": "Unexpected error occurred.",
           "wrong_account": "The provided API key belongs to a different MyQ Garage installation."
         },
         "abort": {
+          "already_configured": "This MyQ Garage installation is already configured.",
           "entry_missing": "The MyQ Garage configuration entry no longer exists.",
-          "recreate_failed": "Could not recreate the MyQ Garage configuration entry."
+          "reload_failed": "The repaired configuration could not be loaded. Your previous entry was kept; try again or check Home Assistant logs."
         }
       }
     }

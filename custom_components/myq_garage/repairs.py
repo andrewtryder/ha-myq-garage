@@ -9,15 +9,16 @@ from homeassistant import config_entries, data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 
 from .client import (
     MyQGarageAccountVerificationError,
     MyQGarageAuthError,
     MyQGarageConnectionError,
 )
-from .config_flow import _user_data_schema, validate_input
-from .const import DOMAIN
-from .util import InvalidURLError, normalize_url
+from .config_flow import ConfigFlow, _user_data_schema, validate_input
+from .const import DOMAIN, invalid_legacy_url_issue_id
+from .util import InsecureURLError, InvalidURLError, normalize_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,8 +34,65 @@ def _repair_error(exc: BaseException) -> str | None:
     return None
 
 
+def _find_duplicate_url_entry(
+    hass: HomeAssistant,
+    normalized_url: str,
+    *,
+    exclude_entry_id: str,
+) -> config_entries.ConfigEntry | None:
+    """Return another entry already configured with the same normalized URL."""
+    for other in hass.config_entries.async_entries(DOMAIN):
+        if other.entry_id == exclude_entry_id:
+            continue
+        try:
+            if normalize_url(other.data[CONF_URL]) == normalized_url:
+                return other
+        except InvalidURLError:
+            continue
+    return None
+
+
+def _find_duplicate_unique_id_entry(
+    hass: HomeAssistant,
+    unique_id: str,
+    *,
+    exclude_entry_id: str,
+) -> config_entries.ConfigEntry | None:
+    """Return another entry already using the given stable installation ID."""
+    for other in hass.config_entries.async_entries(DOMAIN):
+        if other.entry_id == exclude_entry_id:
+            continue
+        if other.unique_id == unique_id:
+            return other
+    return None
+
+
+def _normalize_repair_url(raw_url: str, errors: dict[str, str]) -> str | None:
+    """Normalize a repair URL or populate a form error."""
+    try:
+        return normalize_url(raw_url)
+    except InsecureURLError:
+        errors["base"] = "insecure_url"
+    except InvalidURLError:
+        errors["base"] = "invalid_url"
+    return None
+
+
+def _identity_conflict(
+    entry: config_entries.ConfigEntry, stable_id: str | None
+) -> str | None:
+    """Return a form error key when the stable id does not match the entry."""
+    if (
+        entry.unique_id is not None
+        and stable_id is not None
+        and entry.unique_id != stable_id
+    ):
+        return "wrong_account"
+    return None
+
+
 class InvalidLegacyUrlRepairFlow(RepairsFlow):
-    """Repair flow that replaces an invalid legacy API URL."""
+    """Repair flow that fixes an invalid legacy API URL in place."""
 
     def __init__(self, entry_id: str) -> None:
         """Initialize the repair flow for a specific config entry."""
@@ -50,7 +108,7 @@ class InvalidLegacyUrlRepairFlow(RepairsFlow):
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
-        """Replace a migration-failed entry with a valid version-3 entry."""
+        """Update a migration-failed entry with a valid version-3 URL."""
         errors: dict[str, str] = {}
         entry = self.hass.config_entries.async_get_entry(self._entry_id)
         if entry is None:
@@ -68,18 +126,28 @@ class InvalidLegacyUrlRepairFlow(RepairsFlow):
             errors=errors,
         )
 
-    async def _async_apply_repair(
+    async def _async_validate_repair_input(
         self,
         entry: config_entries.ConfigEntry,
         user_input: dict[str, Any],
         errors: dict[str, str],
-    ) -> data_entry_flow.FlowResult | None:
-        """Validate repaired credentials and recreate the config entry."""
-        try:
-            normalized_url = normalize_url(user_input[CONF_URL])
-        except InvalidURLError:
-            errors["base"] = "invalid_url"
+    ) -> tuple[dict[str, str], str | None] | data_entry_flow.FlowResult | None:
+        """Validate repair form input.
+
+        Returns ``(validated_input, stable_id)`` on success, an abort result when
+        a duplicate exists, or ``None`` when a form error was recorded.
+        """
+        normalized_url = _normalize_repair_url(user_input[CONF_URL], errors)
+        if normalized_url is None:
             return None
+
+        if (
+            _find_duplicate_url_entry(
+                self.hass, normalized_url, exclude_entry_id=entry.entry_id
+            )
+            is not None
+        ):
+            return self.async_abort(reason="already_configured")
 
         validated_input = {
             CONF_URL: normalized_url,
@@ -99,29 +167,106 @@ class InvalidLegacyUrlRepairFlow(RepairsFlow):
                 errors["base"] = "unknown"
             return None
 
-        if (
-            entry.unique_id is not None
-            and info["stable_id"] is not None
-            and entry.unique_id != info["stable_id"]
-        ):
-            errors["base"] = "wrong_account"
+        stable_id = info["stable_id"]
+        if conflict := _identity_conflict(entry, stable_id):
+            errors["base"] = conflict
             return None
 
-        # Entries stuck in MIGRATION_ERROR cannot be reloaded. Remove the
-        # broken entry and recreate it via the normal user config flow.
-        await self.hass.config_entries.async_remove(entry.entry_id)
-        create_result = await self.hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_USER},
-            data=validated_input,
-        )
-        if create_result["type"] is not data_entry_flow.FlowResultType.CREATE_ENTRY:
-            _LOGGER.error(
-                "Repair failed to recreate config entry: %s",
-                create_result,
+        if (
+            stable_id is not None
+            and _find_duplicate_unique_id_entry(
+                self.hass, stable_id, exclude_entry_id=entry.entry_id
             )
-            return self.async_abort(reason="recreate_failed")
+            is not None
+        ):
+            return self.async_abort(reason="already_configured")
+
+        return validated_input, stable_id
+
+    async def _async_recover_entry(
+        self,
+        entry: config_entries.ConfigEntry,
+        validated_input: dict[str, str],
+        stable_id: str | None,
+        *,
+        preserved_entry_id: str,
+        preserved_title: str,
+        preserved_options: dict[str, Any],
+    ) -> data_entry_flow.FlowResult:
+        """Update the entry in place and set it up after a migration error."""
+        # Entries stuck in MIGRATION_ERROR are not recoverable via async_reload,
+        # so after updating version/data we reset the entry to NOT_LOADED and
+        # set it up again using the public async_setup API.
+        update_kwargs: dict[str, Any] = {
+            "data": validated_input,
+            "version": ConfigFlow.VERSION,
+        }
+        if entry.unique_id is None and stable_id is not None:
+            update_kwargs["unique_id"] = stable_id
+
+        self.hass.config_entries.async_update_entry(entry, **update_kwargs)
+
+        if entry.state is config_entries.ConfigEntryState.MIGRATION_ERROR:
+            entry._async_set_state(  # noqa: SLF001
+                self.hass,
+                config_entries.ConfigEntryState.NOT_LOADED,
+                None,
+            )
+
+        try:
+            loaded = await self.hass.config_entries.async_setup(entry.entry_id)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception(
+                "Repair updated entry %s but setup failed", entry.entry_id
+            )
+            return self.async_abort(reason="reload_failed")
+
+        if not loaded or entry.state is not config_entries.ConfigEntryState.LOADED:
+            _LOGGER.error(
+                "Repair updated entry %s but it did not reach LOADED (state=%s)",
+                entry.entry_id,
+                entry.state,
+            )
+            return self.async_abort(reason="reload_failed")
+
+        # Verify registry continuity invariants that async_update_entry preserves.
+        assert entry.entry_id == preserved_entry_id
+        assert entry.title == preserved_title
+        assert dict(entry.options) == preserved_options
+
+        ir.async_delete_issue(
+            self.hass,
+            DOMAIN,
+            invalid_legacy_url_issue_id(entry.entry_id),
+        )
         return self.async_create_entry(title="", data={})
+
+    async def _async_apply_repair(
+        self,
+        entry: config_entries.ConfigEntry,
+        user_input: dict[str, Any],
+        errors: dict[str, str],
+    ) -> data_entry_flow.FlowResult | None:
+        """Validate repaired credentials and update the existing config entry."""
+        preserved_title = entry.title
+        preserved_options = dict(entry.options)
+        preserved_entry_id = entry.entry_id
+
+        validated = await self._async_validate_repair_input(entry, user_input, errors)
+        if validated is None:
+            return None
+        if not isinstance(validated, tuple):
+            return validated
+
+        validated_input, stable_id = validated
+        return await self._async_recover_entry(
+            entry,
+            validated_input,
+            stable_id,
+            preserved_entry_id=preserved_entry_id,
+            preserved_title=preserved_title,
+            preserved_options=preserved_options,
+        )
 
 
 async def async_create_fix_flow(
