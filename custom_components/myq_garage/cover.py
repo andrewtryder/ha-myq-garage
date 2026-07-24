@@ -2,36 +2,32 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.components.cover import (
     CoverDeviceClass,
     CoverEntity,
     CoverEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
-from .coordinator import MyQGarageDataUpdateCoordinator
+from .coordinator import MyQGarageConfigEntry, MyQGarageDataUpdateCoordinator
 from .entity import MyQGarageEntity
+from .models import MyQGarageDevice
+
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MyQGarageConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the MyQ Garage cover platform."""
-    coordinator: MyQGarageDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
 
-    entities = []
-    # Assuming coordinator.data is a list of device dictionaries
-    for device_data in coordinator.data:
-        entities.append(MyQGarageCover(coordinator, device_data))
-
-    async_add_entities(entities)
+    async_add_entities(
+        MyQGarageCover(coordinator, device) for device in coordinator.data.values()
+    )
 
 
 class MyQGarageCover(MyQGarageEntity, CoverEntity):
@@ -40,26 +36,20 @@ class MyQGarageCover(MyQGarageEntity, CoverEntity):
     _attr_device_class = CoverDeviceClass.GARAGE
     # Add open/close capabilities when the custom API supports them
     _attr_supported_features = CoverEntityFeature(0)
+    _attr_name = "Door"
 
     def __init__(
         self,
         coordinator: MyQGarageDataUpdateCoordinator,
-        device_data: dict[str, Any],
+        device: MyQGarageDevice,
     ) -> None:
         """Initialize the cover."""
-        super().__init__(coordinator, device_data)
-        self._attr_unique_id = f"{device_data.get('id', 'unknown')}_cover"
-        self._attr_name = "Door"
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.id}_cover"
 
     @property
     def is_closed(self) -> bool | None:
-        """Return true if cover is closed."""
-        # Find the device in the updated data
-        for device in self.coordinator.data:
-            if device.get("id") == self.device_data.get("id"):
-                status = device.get("status")
-                if status == "closed":
-                    return True
-                if status == "open":
-                    return False
-        return None
+        """Return true if the cover is closed."""
+        if (device := self.device) is None:
+            return None
+        return device.is_closed
