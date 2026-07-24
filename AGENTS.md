@@ -36,9 +36,10 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements_test.lock.txt
 ```
 
-`requirements_test.txt` is the unpinned input list. After changing it, regenerate the lockfile:
+`requirements_test.txt` is the unpinned input list. After changing it, regenerate the lockfile for Linux CI:
 ```bash
-uv pip compile requirements_test.txt -o requirements_test.lock.txt --python-version 3.14
+uv pip compile requirements_test.txt -o requirements_test.lock.txt \
+  --python-version 3.14 --python-platform linux
 ```
 Keep the Ruff revision in `.pre-commit-config.yaml` aligned with the locked `ruff` version.
 ### Formatting and Linting (Ruff)

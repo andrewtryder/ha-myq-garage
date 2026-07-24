@@ -22,10 +22,11 @@ Without `RELEASE_PLEASE_TOKEN`, the workflow falls back to `github.token`, which
 - `requirements_test.txt` — short, unpinned input list
 - `requirements_test.lock.txt` — committed lockfile used by required PR CI
 
-After changing `requirements_test.txt`, regenerate the lockfile:
+After changing `requirements_test.txt`, regenerate the lockfile for Linux CI:
 
 ```bash
-uv pip compile requirements_test.txt -o requirements_test.lock.txt --python-version 3.14
+uv pip compile requirements_test.txt -o requirements_test.lock.txt \
+  --python-version 3.14 --python-platform linux
 ```
 
 Keep the Ruff revision in `.pre-commit-config.yaml` aligned with the locked `ruff` version.
