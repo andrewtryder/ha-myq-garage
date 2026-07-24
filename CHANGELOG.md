@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.4.0...v1.5.0) (2026-07-24)
+
+
+### Features
+
+* restore standalone HACS packaging and harden privacy, recovery, and transport ([#34](https://github.com/andrewtryder/ha-myq-garage/issues/34)) ([3c0fa73](https://github.com/andrewtryder/ha-myq-garage/commit/3c0fa732364928b92925b56baa32a5b70ce10037))
+
 ## [1.4.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.3.0...v1.4.0) (2026-07-24)
 
 
