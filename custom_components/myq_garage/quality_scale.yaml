@@ -14,10 +14,11 @@ rules:
   config-flow: done
   config-flow-test-coverage: done
   dependency-transparency:
-    status: done
+    status: todo
     comment: >-
-      HTTP client and device models are published as the OSI-licensed
-      myq-garage-api package on PyPI with tagged public CI releases.
+      Client/models live in packages/myq-garage-api (MIT) with publish-api.yml
+      trusted-publisher workflow. First PyPI release of myq-garage-api==0.1.0
+      is still required before hassfest can validate the manifest pin.
   docs-actions:
     status: exempt
     comment: Integration does not register any service actions.
