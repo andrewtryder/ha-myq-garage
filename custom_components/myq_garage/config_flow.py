@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     TextSelector,
@@ -30,11 +31,23 @@ from .const import (
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
     get_scan_interval_seconds,
+    invalid_legacy_url_issue_id,
 )
 from .models import extract_stable_id
 from .util import InvalidURLError, normalize_url
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _validation_error(exc: BaseException) -> str | None:
+    """Map a validation exception to a config-flow error key, if known."""
+    if isinstance(exc, MyQGarageConnectionError):
+        return "cannot_connect"
+    if isinstance(exc, MyQGarageAuthError):
+        return "invalid_auth"
+    if isinstance(exc, MyQGarageAccountVerificationError):
+        return "cannot_verify_account"
+    return None
 
 
 def _user_data_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
@@ -200,13 +213,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 validated_input = {**user_input, CONF_URL: normalized_url}
                 try:
                     info = await validate_input(self.hass, validated_input)
-                except MyQGarageConnectionError:
-                    errors["base"] = "cannot_connect"
-                except MyQGarageAuthError:
-                    errors["base"] = "invalid_auth"
-                except Exception:  # pylint: disable=broad-except
-                    _LOGGER.exception("Unexpected exception")
-                    errors["base"] = "unknown"
+                except Exception as err:  # pylint: disable=broad-except
+                    if (error := _validation_error(err)) is not None:
+                        errors["base"] = error
+                    else:
+                        _LOGGER.exception("Unexpected exception")
+                        errors["base"] = "unknown"
                 else:
                     if info["stable_id"] is not None:
                         await self.async_set_unique_id(info["stable_id"])
@@ -239,15 +251,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 info = await validate_input(
                     self.hass, data, require_stable_id=require_stable_id
                 )
-            except MyQGarageConnectionError:
-                errors["base"] = "cannot_connect"
-            except MyQGarageAuthError:
-                errors["base"] = "invalid_auth"
-            except MyQGarageAccountVerificationError:
-                errors["base"] = "cannot_verify_account"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
+            except Exception as err:  # pylint: disable=broad-except
+                if (error := _validation_error(err)) is not None:
+                    errors["base"] = error
+                else:
+                    _LOGGER.exception("Unexpected exception")
+                    errors["base"] = "unknown"
             else:
                 stable_id = info["stable_id"]
                 update_kwargs: dict[str, Any] = {
@@ -291,3 +300,80 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=_reauth_data_schema(),
             errors=errors,
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Allow changing the API URL and API key for an existing entry."""
+        errors: dict[str, str] = {}
+        reconfigure_entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            result = await self._async_reconfigure_submit(
+                reconfigure_entry, user_input, errors
+            )
+            if result is not None:
+                return result
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_user_data_schema(
+                {CONF_URL: reconfigure_entry.data.get(CONF_URL)}
+            ),
+            errors=errors,
+        )
+
+    async def _async_reconfigure_submit(
+        self,
+        reconfigure_entry: config_entries.ConfigEntry,
+        user_input: dict[str, Any],
+        errors: dict[str, str],
+    ) -> config_entries.ConfigFlowResult | None:
+        """Validate and apply a reconfigure form submission."""
+        try:
+            normalized_url = normalize_url(user_input[CONF_URL])
+        except InvalidURLError:
+            errors["base"] = "invalid_url"
+            return None
+
+        duplicate = self._find_duplicate_entry(normalized_url)
+        if duplicate is not None and duplicate.entry_id != reconfigure_entry.entry_id:
+            return self.async_abort(reason="already_configured")
+
+        validated_input = {
+            CONF_URL: normalized_url,
+            CONF_API_KEY: user_input[CONF_API_KEY],
+        }
+        try:
+            info = await validate_input(
+                self.hass,
+                validated_input,
+                require_stable_id=reconfigure_entry.unique_id is not None,
+            )
+        except Exception as err:  # pylint: disable=broad-except
+            if (error := _validation_error(err)) is not None:
+                errors["base"] = error
+            else:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            return None
+
+        update_kwargs: dict[str, Any] = {"data_updates": validated_input}
+        stable_id = info["stable_id"]
+        if stable_id is not None:
+            await self.async_set_unique_id(stable_id)
+            if reconfigure_entry.unique_id is not None:
+                self._abort_if_unique_id_mismatch(reason="wrong_account")
+            else:
+                self._abort_if_unique_id_configured()
+            update_kwargs["unique_id"] = stable_id
+
+        result = self.async_update_and_abort(reconfigure_entry, **update_kwargs)
+        ir.async_delete_issue(
+            self.hass,
+            DOMAIN,
+            invalid_legacy_url_issue_id(reconfigure_entry.entry_id),
+        )
+        if reconfigure_entry.state is not config_entries.ConfigEntryState.LOADED:
+            self.hass.config_entries.async_schedule_reload(reconfigure_entry.entry_id)
+        return result

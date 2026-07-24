@@ -7,10 +7,11 @@ from datetime import timedelta
 
 from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import MyQGarageClient
-from .const import get_scan_interval_seconds
+from .const import DOMAIN, get_scan_interval_seconds, invalid_legacy_url_issue_id
 from .coordinator import MyQGarageConfigEntry, MyQGarageDataUpdateCoordinator
 from .util import InvalidURLError, normalize_url
 
@@ -101,6 +102,16 @@ async def async_migrate_entry(hass: HomeAssistant, entry: MyQGarageConfigEntry) 
             err,
             entry.data.get(CONF_URL),
         )
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            invalid_legacy_url_issue_id(entry.entry_id),
+            is_fixable=True,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="invalid_legacy_url",
+            translation_placeholders={"url": str(entry.data.get(CONF_URL, ""))},
+            data={"entry_id": entry.entry_id},
+        )
         return False
 
     hass.config_entries.async_update_entry(
@@ -109,4 +120,5 @@ async def async_migrate_entry(hass: HomeAssistant, entry: MyQGarageConfigEntry) 
         unique_id=new_unique_id,
         version=3,
     )
+    ir.async_delete_issue(hass, DOMAIN, invalid_legacy_url_issue_id(entry.entry_id))
     return True
