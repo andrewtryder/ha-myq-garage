@@ -59,7 +59,7 @@ To change the API URL or API key later, use **Settings → Devices & Services �
 ## Data updates
 
 - All device state comes from polling your companion API's `GET /devices` endpoint on the configured scan interval; there is no push/webhook support.
-- Every poll replaces the full set of known devices. If your API stops returning a device (for example, it was removed from your account), the corresponding Home Assistant entity becomes **unavailable** rather than showing a stale state. If a new device appears in a later poll, a cover entity is created automatically without reloading the integration.
+- Every poll replaces the full set of known devices. If your API stops returning a device (for example, it was removed from your account), the corresponding Home Assistant entity becomes **unavailable** rather than showing a stale state. You can then delete that device from **Settings → Devices & Services → MyQ Garage → Devices** (Delete). If a new device appears in a later poll, a cover entity is created automatically without reloading the integration.
 - Changing the scan interval in the options flow takes effect immediately, without needing to reload the integration or restart Home Assistant.
 - If your API key is revoked or expires, Home Assistant will prompt you to reauthenticate (**Settings → Devices & Services → MyQ Garage → Reconfigure**) rather than repeatedly retrying with a bad key.
 - Download diagnostics from the integration page (**Download diagnostics**) when filing issues; the API key is redacted automatically.
@@ -117,7 +117,7 @@ If implemented, this should return:
 
 - **"Failed to connect to the MyQ API"**: verify the API URL is reachable from your Home Assistant instance (no typos, correct scheme/port) and that the `/devices` endpoint responds.
 - **"Invalid API Key"**: confirm the API key matches what your companion API expects. If the integration later prompts you to reauthenticate, go to **Settings → Devices & Services → MyQ Garage** and follow the reauthentication flow to enter a new key without recreating the integration.
-- **A garage door entity is unavailable**: this means your API no longer includes that device in its `/devices` response. Check your companion API/account configuration; the entity returns automatically once the device reappears in the API response.
+- **A garage door entity is unavailable**: this means your API no longer includes that device in its `/devices` response. Check your companion API/account configuration; the entity returns automatically once the device reappears in the API response. If the device is gone for good, open the device page and choose **Delete**.
 - **Entity shows an unknown state**: your API returned a `status` value that is not one of `open`, `closed`, `opening`, or `closing`. Check the Home Assistant logs for a warning identifying the offending device and status value.
 - Enable debug logging for more detail by adding the following to `configuration.yaml`:
 

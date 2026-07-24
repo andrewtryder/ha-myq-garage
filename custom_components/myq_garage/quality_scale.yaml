@@ -65,3 +65,4 @@ rules:
     comment: Integration is not discoverable; configuration is manual.
   reconfiguration-flow: done
   repair-issues: done
+  stale-devices: done
