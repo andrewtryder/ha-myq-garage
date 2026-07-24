@@ -22,6 +22,10 @@ class MyQGarageConnectionError(MyQGarageClientError):
     """Exception for connection errors."""
 
 
+class MyQGarageAccountVerificationError(MyQGarageClientError):
+    """Exception when installation identity cannot be verified via /info."""
+
+
 class MyQGarageClient:
     """Client for interacting with the MyQ Garage API."""
 
