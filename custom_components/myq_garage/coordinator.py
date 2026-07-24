@@ -47,14 +47,22 @@ class MyQGarageDataUpdateCoordinator(DataUpdateCoordinator[dict[str, MyQGarageDe
             raw_devices = await self.client.get_devices()
         except MyQGarageAuthError as exception:
             raise ConfigEntryAuthFailed(
-                f"Authentication failed: {exception}"
+                translation_domain=DOMAIN,
+                translation_key="authentication_failed",
+                translation_placeholders={"error": str(exception)},
             ) from exception
         except MyQGarageClientError as exception:
             raise UpdateFailed(
-                f"Error communicating with API: {exception}"
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"error": str(exception)},
             ) from exception
 
         try:
             return parse_devices(raw_devices)
         except MyQGarageClientError as exception:
-            raise UpdateFailed(f"Invalid API response: {exception}") from exception
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="invalid_api_response",
+                translation_placeholders={"error": str(exception)},
+            ) from exception

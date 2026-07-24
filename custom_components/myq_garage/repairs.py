@@ -130,11 +130,14 @@ async def async_create_fix_flow(
     data: dict[str, str | int | float | None] | None,
 ) -> RepairsFlow:
     """Create a repair flow for the given issue."""
-    if data and isinstance(data.get("entry_id"), str):
-        entry_id = data["entry_id"]
+    entry_id: str | None = None
+    raw_entry_id = data.get("entry_id") if data else None
+    if isinstance(raw_entry_id, str):
+        entry_id = raw_entry_id
     elif issue_id.startswith("invalid_legacy_url_"):
         entry_id = issue_id.removeprefix("invalid_legacy_url_")
-    else:
+
+    if entry_id is None:
         raise ValueError(f"Unknown repair issue_id: {issue_id}")
 
     return InvalidLegacyUrlRepairFlow(entry_id)

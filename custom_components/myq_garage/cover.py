@@ -51,7 +51,7 @@ class MyQGarageCover(MyQGarageEntity, CoverEntity):
     _attr_device_class = CoverDeviceClass.GARAGE
     # Add open/close capabilities when the custom API supports them
     _attr_supported_features = CoverEntityFeature(0)
-    _attr_name = "Door"
+    _attr_translation_key = "door"
 
     def __init__(
         self,

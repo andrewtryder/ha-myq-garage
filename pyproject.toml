@@ -34,3 +34,12 @@ ignore = []
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
+
+[tool.mypy]
+python_version = "3.14"
+pretty = true
+show_error_codes = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+files = ["custom_components/myq_garage"]

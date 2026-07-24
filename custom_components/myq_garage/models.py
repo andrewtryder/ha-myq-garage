@@ -99,6 +99,8 @@ def parse_devices(raw_devices: Any) -> dict[str, MyQGarageDevice]:
 
         raw_status = raw.get("status")
         try:
+            if not isinstance(raw_status, str):
+                raise ValueError("status is not a string")
             status = MyQGarageDoorStatus(raw_status)
         except ValueError:
             _LOGGER.warning(
