@@ -21,7 +21,7 @@ This integration connects Home Assistant to a custom MyQ Garage REST API. It is 
 Before installing this integration, you need:
 
 1. **A deployed MyQ Garage API** — a Cloudflare Worker (or compatible REST service) that exposes a `/devices` endpoint and accepts Bearer token authentication. This integration does not talk to MyQ directly.
-2. **Home Assistant** with [HACS](https://hacs.xyz/) installed.
+2. **Home Assistant 2026.7.0 or newer**, with [HACS](https://hacs.xyz/) installed.
 
 If you do not already have the API running, open an [issue](https://github.com/andrewtryder/ha-myq-garage/issues) for setup guidance.
 
