@@ -70,7 +70,6 @@
   "issues": {
     "invalid_legacy_url": {
       "title": "Invalid MyQ Garage API URL",
-      "description": "The stored API URL `{url}` is invalid and could not be migrated. Use the repair flow to enter a valid URL and API key, or remove the integration.",
       "fix_flow": {
         "step": {
           "confirm": {
