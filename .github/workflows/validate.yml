@@ -68,6 +68,64 @@ jobs:
           fi
           echo "Release tag ${tag} is available."
 
+      - name: Smoke-check standalone HACS release layout
+        run: |
+          set -euo pipefail
+          staging="$(mktemp -d)"
+          trap 'rm -rf "${staging}"' EXIT
+          cp -a custom_components/myq_garage "${staging}/myq_garage"
+
+          # Required runtime files for a standalone HACS install.
+          for required in \
+            __init__.py \
+            client.py \
+            models.py \
+            config_flow.py \
+            coordinator.py \
+            cover.py \
+            diagnostics.py \
+            entity.py \
+            repairs.py \
+            util.py \
+            const.py \
+            manifest.json \
+            strings.json \
+            icons.json \
+            quality_scale.yaml \
+            translations/en.json \
+            brand/icon.png
+          do
+            test -e "${staging}/myq_garage/${required}"
+          done
+
+          # Must not depend on repository-only packages.
+          if rg -n 'myq_garage_api|myq-garage-api' "${staging}/myq_garage"; then
+            echo "Standalone integration must not import repository-only packages."
+            exit 1
+          fi
+
+          INTEGRATION_ROOT="${staging}/myq_garage" python - <<'PY'
+          import ast
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["INTEGRATION_ROOT"])
+          forbidden = {"myq_garage_api"}
+          for path in root.rglob("*.py"):
+              tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      names = {alias.name.split(".")[0] for alias in node.names}
+                  elif isinstance(node, ast.ImportFrom) and node.module:
+                      names = {node.module.split(".")[0]}
+                  else:
+                      continue
+                  overlap = names & forbidden
+                  if overlap:
+                      raise SystemExit(f"{path} imports forbidden package(s): {overlap}")
+          print("Standalone release layout OK")
+          PY
+
   validate-tests:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -93,10 +151,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements_test.lock.txt
-          pip install -e packages/myq-garage-api
 
       - name: Run pre-commit
         run: pre-commit run --all-files
+        # pre-commit is the canonical Ruff lint/format runner. The explicit
+        # ruff steps below remain as a fast, non-hook regression signal when
+        # someone runs the job steps individually.
 
       - name: Run Ruff Linter
         run: ruff check .
@@ -123,14 +183,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download actionlint
+      - name: Download and verify actionlint
         env:
           ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
         run: |
           set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           curl --proto '=https' --tlsv1.2 -sSfL \
-            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-            | tar xz actionlint
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}" \
+            -o "${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check
+          tar xz -f "${archive}" actionlint
           ./actionlint -version
 
       - name: Run actionlint
@@ -168,7 +232,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements_test.txt
-          pip install -e packages/myq-garage-api
 
       - name: Run Ruff Linter
         run: ruff check .

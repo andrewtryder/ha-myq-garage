@@ -34,7 +34,7 @@ from .const import (
     invalid_legacy_url_issue_id,
 )
 from .models import extract_stable_id
-from .util import InvalidURLError, normalize_url
+from .util import InsecureURLError, InvalidURLError, normalize_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -201,6 +201,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 normalized_url = normalize_url(user_input[CONF_URL])
+            except InsecureURLError:
+                errors["base"] = "insecure_url"
             except InvalidURLError:
                 errors["base"] = "invalid_url"
             else:
@@ -332,6 +334,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Validate and apply a reconfigure form submission."""
         try:
             normalized_url = normalize_url(user_input[CONF_URL])
+        except InsecureURLError:
+            errors["base"] = "insecure_url"
+            return None
         except InvalidURLError:
             errors["base"] = "invalid_url"
             return None

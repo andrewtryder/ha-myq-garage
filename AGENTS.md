@@ -7,15 +7,18 @@ This repository contains a Home Assistant custom component integration for "MyQ 
 The core integration logic is located in `custom_components/myq_garage/`.
 
 ## File Structure
-- `custom_components/myq_garage/`: The main integration code.
-  - `client.py`: Handles communication with the MyQ Garage custom API.
+- `custom_components/myq_garage/`: The main integration code (standalone HACS install root).
+  - `client.py`: HTTP client for the companion MyQ Garage API.
+  - `models.py`: Device models and `/devices` / `/info` parsing.
   - `cover.py`: Home Assistant cover entity platform.
   - `config_flow.py`: Handles the UI configuration setup for Home Assistant.
   - `coordinator.py`: Data update coordinator handling the polling.
-  - `util.py`: Shared helpers such as API URL normalization.
+  - `util.py`: Shared helpers such as API URL normalization and HTTP policy.
 - `tests/`: Unit tests using `pytest` and `pytest-homeassistant-custom-component`.
-- `pyproject.toml`: Configuration for `ruff` and `pytest`.
+- `pyproject.toml`: Configuration for `ruff`, `pytest`, and `mypy`.
 - `requirements_test.lock.txt`: Locked test/tooling dependencies for reproducible CI.
+
+Do not introduce a separate runtime package or PyPI publishing path. All integration-owned runtime code must live under `custom_components/myq_garage/`.
 
 ## Release and Commit Conventions
 **CRITICAL:** This project uses `release-please` for automated changelog generation and version bumping.

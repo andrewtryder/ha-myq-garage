@@ -298,6 +298,21 @@ async def test_config_flow_url_with_fragment_rejected(hass: HomeAssistant) -> No
     assert result["errors"] == {"base": "invalid_url"}
 
 
+async def test_config_flow_public_http_rejected(hass: HomeAssistant) -> None:
+    """Test plain HTTP to a public host is rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_URL: "http://myq-api.example.com",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "insecure_url"}
+
+
 async def test_config_flow_normalizes_hostname_and_default_port(
     hass: HomeAssistant,
 ) -> None:
@@ -1076,6 +1091,38 @@ async def test_reconfigure_flow_invalid_url(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_url"}
+    assert entry.data[CONF_API_KEY] == "old_api_key"
+
+
+async def test_reconfigure_flow_public_http_rejected(hass: HomeAssistant) -> None:
+    """Test reconfigure rejects plain HTTP for public hosts."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_URL: "http://myq-api.example.com",
+            CONF_API_KEY: "new_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "insecure_url"}
     assert entry.data[CONF_API_KEY] == "old_api_key"
 
 
