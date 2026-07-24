@@ -7,19 +7,18 @@ rules:
   brands:
     status: exempt
     comment: >-
-      HACS-only custom integration; not submitted to the core
-      home-assistant/brands repository. Local brand assets are shipped
-      under custom_components/myq_garage/brand/.
+      HACS custom integration brand assets submitted upstream in
+      home-assistant/brands#10836. Local assets remain under
+      custom_components/myq_garage/brand/ until that PR merges.
   common-modules: done
   config-flow: done
   config-flow-test-coverage: done
   dependency-transparency:
     status: todo
     comment: >-
-      The API client currently lives in-tree rather than as a separately
-      published, tagged PyPI package (OSI license, public CI, matching
-      releases). Extraction requires choosing a package name and
-      publishing location; not yet started.
+      Client/models live in packages/myq-garage-api (MIT) with publish-api.yml
+      trusted-publisher workflow. First PyPI release of myq-garage-api==0.1.0
+      is still required before hassfest can validate the manifest pin.
   docs-actions:
     status: exempt
     comment: Integration does not register any service actions.

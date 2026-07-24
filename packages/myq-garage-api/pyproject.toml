@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "myq-garage-api"
+version = "0.1.0"
+description = "Async HTTP client for the MyQ Garage companion API"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+  { name = "Andrew Ryder", email = "andrew@tryder.dev" },
+]
+keywords = ["myq", "garage", "homeassistant", "aiohttp"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Framework :: AsyncIO",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Home Automation",
+]
+dependencies = [
+  "aiohttp>=3.9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/andrewtryder/ha-myq-garage"
+Repository = "https://github.com/andrewtryder/ha-myq-garage"
+Issues = "https://github.com/andrewtryder/ha-myq-garage/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/myq_garage_api"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/myq_garage_api",
+  "README.md",
+  "LICENSE",
+]
