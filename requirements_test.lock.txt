@@ -2531,9 +2531,9 @@ pyjwt==2.10.1 \
     #   hass-nabucasa
     #   homeassistant
     #   pycognito
-pylint-per-file-ignores==1.4.0 \
-    --hash=sha256:0cd82d22551738b4e63a0aa1dab2a1fc4016e8f27f1429159616483711e122fd \
-    --hash=sha256:c0de7b3d0169571aefaa1ac3a82a265641b8825b54a0b6f5ef27c3b76b988609
+pylint-per-file-ignores==3.2.1 \
+    --hash=sha256:0a89f3cdc6fa09244a3f5624ad977ac9b026f0b25b2adb48c97c080da8d858f9 \
+    --hash=sha256:aaac8b118791e742ccf7baaf42346978f6cd0440a9090d4087fc8ff26e4a31f2
     # via pytest-homeassistant-custom-component
 pyopenssl==25.3.0 \
     --hash=sha256:1fda6fc034d5e3d179d39e59c1895c9faeaf40a79de5fc4cbbfbe0d36f4a77b6 \
