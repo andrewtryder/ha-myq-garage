@@ -2,36 +2,40 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import MyQGarageDataUpdateCoordinator
+from .models import MyQGarageDevice
 
 
 class MyQGarageEntity(CoordinatorEntity[MyQGarageDataUpdateCoordinator]):
     """Defines a base MyQ Garage entity."""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         coordinator: MyQGarageDataUpdateCoordinator,
-        device_data: dict[str, Any],
+        device: MyQGarageDevice,
     ) -> None:
         """Initialize the entity."""
         super().__init__(coordinator)
-        self.device_data = device_data
-        self._attr_has_entity_name = True
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this MyQ Garage device."""
-        device_id = self.device_data.get("id", "unknown")
-        device_name = self.device_data.get("name", "MyQ Garage Door")
-        return DeviceInfo(
-            identifiers={(DOMAIN, str(device_id))},
-            name=device_name,
+        self._device_id = device.id
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, device.id)},
+            name=device.name,
             manufacturer="MyQ",
             model="Custom API Wrapper",
         )
+
+    @property
+    def device(self) -> MyQGarageDevice | None:
+        """Return the current device data from the coordinator, if present."""
+        return self.coordinator.data.get(self._device_id)
+
+    @property
+    def available(self) -> bool:
+        """Return True if the coordinator succeeded and the device is present."""
+        return super().available and self._device_id in self.coordinator.data

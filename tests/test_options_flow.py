@@ -104,6 +104,71 @@ async def test_options_flow_invalid_scan_interval(hass: HomeAssistant) -> None:
     assert result["errors"] == {"base": "invalid_scan_interval"}
 
 
+async def test_options_flow_recovers_after_error(hass: HomeAssistant) -> None:
+    """Test the same options flow succeeds after correcting an invalid value."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_SCAN_INTERVAL_SECONDS: 5},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_scan_interval"}
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_SCAN_INTERVAL_SECONDS: 90},
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {CONF_SCAN_INTERVAL_SECONDS: 90}
+
+
+async def test_options_persist_across_unload_reload(hass: HomeAssistant) -> None:
+    """Test an updated scan interval survives an unload and reload cycle."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "http://localhost:8080",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_SCAN_INTERVAL_SECONDS: 120},
+        )
+        await hass.async_block_till_done()
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        coordinator = entry.runtime_data
+        assert coordinator.update_interval == timedelta(seconds=120)
+
+
 async def test_options_update_changes_coordinator_interval(
     hass: HomeAssistant,
 ) -> None:
@@ -124,7 +189,7 @@ async def test_options_update_changes_coordinator_interval(
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator = entry.runtime_data
         assert coordinator.update_interval == timedelta(
             seconds=DEFAULT_SCAN_INTERVAL_SECONDS
         )

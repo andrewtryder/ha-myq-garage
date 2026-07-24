@@ -54,6 +54,83 @@ Only one config entry is allowed per API URL.
 
 The integration polls your API every **30 seconds** by default. To change this, go to **Settings → Devices & Services → MyQ Garage → Configure** and set **Scan interval (seconds)** (allowed range: 10–3600).
 
+## Data updates
+
+- All device state comes from polling your companion API's `GET /devices` endpoint on the configured scan interval; there is no push/webhook support.
+- Every poll replaces the full set of known devices. If your API stops returning a device (for example, it was removed from your account), the corresponding Home Assistant entity becomes **unavailable** rather than showing a stale state.
+- Changing the scan interval in the options flow takes effect immediately, without needing to reload the integration or restart Home Assistant.
+- If your API key is revoked or expires, Home Assistant will prompt you to reauthenticate (**Settings → Devices & Services → MyQ Garage → Reconfigure**) rather than repeatedly retrying with a bad key.
+
+## API contract
+
+This integration expects your companion API to expose:
+
+```
+GET /devices
+Authorization: Bearer <api_key>
+```
+
+returning a JSON array of device objects:
+
+```json
+[
+  {
+    "id": "door_1",
+    "name": "Main Garage Door",
+    "status": "closed"
+  }
+]
+```
+
+- `id` (string, required): a stable, non-empty identifier for the device. Records missing an `id` are skipped and logged; a response containing two devices with the same `id` is treated as invalid and the entire update is rejected (the previous good data is kept until the next successful poll).
+- `name` (string, optional): a human-readable device name. Defaults to "MyQ Garage Door" if omitted.
+- `status` (string, optional): one of `open`, `closed`, `opening`, `closing`. Any other value (or a missing value) is treated as unknown, which Home Assistant reports as an unknown cover state rather than open or closed.
+
+The endpoint must respond with `401` or `403` for an invalid or expired API key so Home Assistant can distinguish authentication failures (which trigger reauthentication) from connectivity failures (which trigger a retry).
+
+### Optional: stable installation identity (`/info`)
+
+```
+GET /info
+Authorization: Bearer <api_key>
+```
+
+If implemented, this should return:
+
+```json
+{ "installation_id": "some-stable-identifier" }
+```
+
+`installation_id` should be a stable identifier for your account/installation (not derived from the URL, hostname, or IP). When present, the integration uses it to detect duplicate config entries even if the API URL changes later, and to confirm you're reauthenticating the same account rather than switching to a different one. If your API does not implement `/info`, return `404` and the integration falls back to comparing configured URLs — no other behavior changes.
+
+## Known limitations
+
+- **Read-only**: this integration cannot open or close your garage door; it only reports status reported by your API.
+- **Cloud polling**: state changes are only reflected after the next poll (every 30 seconds by default), not instantly.
+- **No discovery**: the integration must be added manually with your API URL and API key; there is no automatic discovery of your companion API.
+- **Single account identity**: config entries are de-duplicated by comparing configured API URLs unless your companion API implements the optional `/info` endpoint described above, which provides a durable identity independent of the URL.
+
+## Troubleshooting
+
+- **"Failed to connect to the MyQ API"**: verify the API URL is reachable from your Home Assistant instance (no typos, correct scheme/port) and that the `/devices` endpoint responds.
+- **"Invalid API Key"**: confirm the API key matches what your companion API expects. If the integration later prompts you to reauthenticate, go to **Settings → Devices & Services → MyQ Garage** and follow the reauthentication flow to enter a new key without recreating the integration.
+- **A garage door entity is unavailable**: this means your API no longer includes that device in its `/devices` response. Check your companion API/account configuration; the entity returns automatically once the device reappears in the API response.
+- **Entity shows an unknown state**: your API returned a `status` value that is not one of `open`, `closed`, `opening`, or `closing`. Check the Home Assistant logs for a warning identifying the offending device and status value.
+- Enable debug logging for more detail by adding the following to `configuration.yaml`:
+
+  ```yaml
+  logger:
+    logs:
+      custom_components.myq_garage: debug
+  ```
+
+## Removing the integration
+
+1. Go to **Settings → Devices & Services**.
+2. Find **MyQ Garage** and select **⋮** → **Delete**.
+3. Confirm removal. This deletes the config entry and all associated cover entities and devices; it does not affect your companion API or its data.
+4. Optionally, remove the integration files via HACS (**HACS → Integrations → MyQ Garage → ⋮ → Remove**) if you no longer want the code installed.
+
 ## Local Development
 
 This repository includes optional Docker-based tooling for testing the integration end-to-end. HACS users do not need these files.

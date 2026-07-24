@@ -1,7 +1,12 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "--cov=custom_components/myq_garage --cov-report=term-missing"
+addopts = """
+    --cov=custom_components/myq_garage
+    --cov-report=term-missing
+    --cov-report=xml
+    --cov-fail-under=95
+"""
 pythonpath = ["."]
 
 [tool.ruff]

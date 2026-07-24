@@ -34,10 +34,16 @@ async def test_config_flow_user_step(hass: HomeAssistant) -> None:
 
 
 async def test_config_flow_success(hass: HomeAssistant) -> None:
-    """Test a successful config flow creates an entry with a unique ID."""
-    with patch(
-        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
-        return_value=MOCK_DEVICE_DATA,
+    """Test a successful config flow creates an entry without a unique ID."""
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
@@ -54,14 +60,101 @@ async def test_config_flow_success(hass: HomeAssistant) -> None:
         CONF_URL: "https://myq-api.example.com/",
         CONF_API_KEY: "test_api_key",
     }
-    assert result["result"].unique_id == "https://myq-api.example.com"
+    # The companion API does not (yet) support the optional /info endpoint,
+    # so the URL is not used as a unique ID; duplicates are instead prevented
+    # by comparing normalized URLs (see below).
+    assert result["result"].unique_id is None
+
+
+async def test_config_flow_uses_stable_id_when_available(hass: HomeAssistant) -> None:
+    """Test a config entry adopts a stable id from the optional /info endpoint."""
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "https://myq-api.example.com/",
+                CONF_API_KEY: "test_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].unique_id == "installation-123"
+
+
+async def test_config_flow_duplicate_stable_id_aborts(hass: HomeAssistant) -> None:
+    """Test two different URLs sharing the same stable id are rejected."""
+    existing_entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://old-myq-api.example.com",
+            CONF_API_KEY: "existing_key",
+        },
+    )
+    existing_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "https://new-myq-api.example.com",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_config_flow_info_endpoint_error_falls_back(hass: HomeAssistant) -> None:
+    """Test the flow still succeeds if the optional /info call fails."""
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            side_effect=MyQGarageConnectionError("Connection failed"),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "https://myq-api.example.com/",
+                CONF_API_KEY: "test_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].unique_id is None
 
 
 async def test_config_flow_duplicate_url_aborts(hass: HomeAssistant) -> None:
     """Test configuring the same API URL twice is rejected."""
     existing_entry = MockConfigEntry(
         domain=DOMAIN,
-        unique_id="https://myq-api.example.com",
         data={
             CONF_URL: "https://myq-api.example.com",
             CONF_API_KEY: "existing_key",
@@ -122,3 +215,406 @@ async def test_config_flow_auth_error(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
+
+
+async def test_config_flow_unknown_error(hass: HomeAssistant) -> None:
+    """Test an unexpected exception is surfaced as an unknown error."""
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "test_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "unknown"}
+
+
+async def test_config_flow_invalid_url(hass: HomeAssistant) -> None:
+    """Test malformed URLs are rejected before attempting a connection."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_URL: "not-a-url",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_url"}
+
+
+async def test_config_flow_url_with_credentials_rejected(hass: HomeAssistant) -> None:
+    """Test URLs with embedded credentials are rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_URL: "https://user:pass@myq-api.example.com",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_url"}
+
+
+async def test_config_flow_url_missing_hostname_rejected(hass: HomeAssistant) -> None:
+    """Test a URL with a scheme but no hostname is rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+        data={
+            CONF_URL: "https://",
+            CONF_API_KEY: "test_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_url"}
+
+
+async def test_config_flow_ignores_malformed_existing_entry_url(
+    hass: HomeAssistant,
+) -> None:
+    """Test duplicate detection skips an existing entry with an unparsable URL."""
+    existing_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "not-a-url",
+            CONF_API_KEY: "existing_key",
+        },
+    )
+    existing_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_config_flow_recovers_after_error(hass: HomeAssistant) -> None:
+    """Test the user can correct an error and successfully create an entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=MyQGarageAuthError("Invalid API Key"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "bad_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "good_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_API_KEY] == "good_api_key"
+
+
+async def test_reauth_flow_shows_form(hass: HomeAssistant) -> None:
+    """Test starting a reauth flow shows the confirmation form."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+
+
+async def test_reauth_flow_invalid_auth(hass: HomeAssistant) -> None:
+    """Test a reauth attempt with a still-invalid API key shows an error."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=MyQGarageAuthError("Invalid API Key"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "still_bad_api_key"},
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+
+async def test_reauth_flow_connection_error(hass: HomeAssistant) -> None:
+    """Test a connection error during reauth shows a cannot_connect error."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=MyQGarageConnectionError("Connection failed"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "some_api_key"},
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_reauth_flow_recovers_after_error(hass: HomeAssistant) -> None:
+    """Test the same reauth flow succeeds after correcting the API key."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=MyQGarageAuthError("Invalid API Key"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "still_bad_api_key"},
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "good_api_key"},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_API_KEY] == "good_api_key"
+
+
+async def test_reauth_flow_unknown_error(hass: HomeAssistant) -> None:
+    """Test an unexpected exception during reauth is surfaced as unknown."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "some_api_key"},
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "unknown"}
+
+
+async def test_reauth_flow_success(hass: HomeAssistant) -> None:
+    """Test a successful reauth updates and reloads the existing entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "good_api_key"},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_API_KEY] == "good_api_key"
+    assert entry.data[CONF_URL] == "https://myq-api.example.com"
+
+
+async def test_reauth_flow_adopts_stable_id(hass: HomeAssistant) -> None:
+    """Test reauth adopts a stable id once the API starts providing one."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert entry.unique_id is None
+
+    result = await entry.start_reauth_flow(hass)
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "good_api_key"},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.unique_id == "installation-123"
+
+
+async def test_reauth_flow_wrong_account_aborts(hass: HomeAssistant) -> None:
+    """Test reauth with a key for a different account is rejected."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "bad_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-999"},
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "someone_elses_api_key"},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_account"
+    assert entry.data[CONF_API_KEY] == "bad_api_key"
+    assert entry.unique_id == "installation-123"

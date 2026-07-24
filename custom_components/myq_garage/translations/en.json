@@ -7,13 +7,33 @@
         "data": {
           "url": "API URL",
           "api_key": "API Key"
+        },
+        "data_description": {
+          "url": "The base URL of your MyQ Garage companion API. Must use the http or https scheme and must not contain a username or password.",
+          "api_key": "The API key issued by your MyQ Garage companion API."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate MyQ Garage",
+        "description": "Your MyQ Garage API key is no longer valid. Enter a new API key to continue.",
+        "data": {
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "api_key": "The new API key issued by your MyQ Garage companion API."
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the MyQ API.",
-      "invalid_auth": "Invalid API Key or URL.",
+      "invalid_auth": "Invalid API Key.",
+      "invalid_url": "The API URL must use http or https, include a hostname, and must not contain a username or password.",
       "unknown": "Unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This MyQ Garage API URL is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "wrong_account": "The provided API key belongs to a different MyQ Garage installation than the one being reauthenticated."
     }
   },
   "options": {
@@ -23,6 +43,9 @@
         "description": "Configure how often Home Assistant polls your MyQ Garage API.",
         "data": {
           "scan_interval_seconds": "Scan interval (seconds)"
+        },
+        "data_description": {
+          "scan_interval_seconds": "How often, in seconds, Home Assistant polls the MyQ Garage API for device status. Must be between 10 and 3600 seconds."
         }
       }
     },
