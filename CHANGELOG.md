@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.1.1...v1.2.0) (2026-07-24)
+
+
+### Features
+
+* meet HACS Silver quality readiness requirements ([c859c4e](https://github.com/andrewtryder/ha-myq-garage/commit/c859c4ef5fdec0878fa91a27cd0c5537750b0050))
+* meet HACS Silver quality readiness requirements ([4c92bad](https://github.com/andrewtryder/ha-myq-garage/commit/4c92badaba4fd0571902df3d488a58cbabf68c30))
+
+
+### Bug Fixes
+
+* pre-1.2.0 release blockers ([#15](https://github.com/andrewtryder/ha-myq-garage/issues/15)) ([298fc9a](https://github.com/andrewtryder/ha-myq-garage/commit/298fc9a1ef42135bb6dac6de0ebf9bcd46aab1cd))
+
 ## [1.1.1](https://github.com/andrewtryder/ha-myq-garage/compare/v1.1.0...v1.1.1) (2026-07-24)
 
 
