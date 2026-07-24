@@ -26,7 +26,9 @@ After changing `requirements_test.txt`, regenerate the lockfile for Linux CI:
 
 ```bash
 uv pip compile requirements_test.txt -o requirements_test.lock.txt \
-  --python-version 3.14 --python-platform linux
+  --python-version 3.14 --python-platform linux --generate-hashes
 ```
+
+Required PR CI installs with `pip install --require-hashes -r requirements_test.lock.txt`.
 
 Keep the Ruff revision in `.pre-commit-config.yaml` aligned with the locked `ruff` version.
