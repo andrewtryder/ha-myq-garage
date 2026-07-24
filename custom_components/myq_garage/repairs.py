@@ -91,6 +91,31 @@ def _identity_conflict(
     return None
 
 
+def _async_prepare_migration_error_entry_for_setup(
+    hass: HomeAssistant, entry: config_entries.ConfigEntry
+) -> None:
+    """Move a MIGRATION_ERROR entry to NOT_LOADED so public setup can run.
+
+    Home Assistant treats ``ConfigEntryState.MIGRATION_ERROR`` as
+    non-recoverable: ``async_reload`` refuses to unload it, and
+    ``async_setup`` only accepts ``NOT_LOADED``. There is no public API to
+    recover an entry that failed migration while preserving its
+    ``entry_id``, options, title, unique ID, and entity/device registry
+    associations. Delete-and-recreate would break that continuity.
+
+    Until Core exposes a supported recovery path, reset the state with the
+    private ``ConfigEntry._async_set_state`` hook in this single helper.
+    """
+    if entry.state is not config_entries.ConfigEntryState.MIGRATION_ERROR:
+        return
+
+    entry._async_set_state(  # noqa: SLF001
+        hass,
+        config_entries.ConfigEntryState.NOT_LOADED,
+        None,
+    )
+
+
 class InvalidLegacyUrlRepairFlow(RepairsFlow):
     """Repair flow that fixes an invalid legacy API URL in place."""
 
@@ -194,9 +219,6 @@ class InvalidLegacyUrlRepairFlow(RepairsFlow):
         preserved_options: dict[str, Any],
     ) -> data_entry_flow.FlowResult:
         """Update the entry in place and set it up after a migration error."""
-        # Entries stuck in MIGRATION_ERROR are not recoverable via async_reload,
-        # so after updating version/data we reset the entry to NOT_LOADED and
-        # set it up again using the public async_setup API.
         update_kwargs: dict[str, Any] = {
             "data": validated_input,
             "version": ConfigFlow.VERSION,
@@ -205,13 +227,7 @@ class InvalidLegacyUrlRepairFlow(RepairsFlow):
             update_kwargs["unique_id"] = stable_id
 
         self.hass.config_entries.async_update_entry(entry, **update_kwargs)
-
-        if entry.state is config_entries.ConfigEntryState.MIGRATION_ERROR:
-            entry._async_set_state(  # noqa: SLF001
-                self.hass,
-                config_entries.ConfigEntryState.NOT_LOADED,
-                None,
-            )
+        _async_prepare_migration_error_entry_for_setup(self.hass, entry)
 
         try:
             loaded = await self.hass.config_entries.async_setup(entry.entry_id)

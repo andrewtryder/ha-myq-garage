@@ -17,7 +17,10 @@ from custom_components.myq_garage.const import (
     DOMAIN,
     invalid_legacy_url_issue_id,
 )
-from custom_components.myq_garage.repairs import async_create_fix_flow
+from custom_components.myq_garage.repairs import (
+    _async_prepare_migration_error_entry_for_setup,
+    async_create_fix_flow,
+)
 
 MOCK_DEVICE_DATA = [
     {
@@ -546,6 +549,91 @@ async def test_async_create_fix_flow_from_issue_id_prefix(
     """Fall back to parsing the entry id from the issue id prefix."""
     flow = await async_create_fix_flow(hass, "invalid_legacy_url_abc123", data=None)
     assert flow._entry_id == "abc123"
+
+
+def test_prepare_migration_error_entry_moves_to_not_loaded(
+    hass: HomeAssistant,
+) -> None:
+    """Compatibility helper resets MIGRATION_ERROR so public setup can run."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+    entry._async_set_state(hass, ConfigEntryState.MIGRATION_ERROR, None)
+
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
+    _async_prepare_migration_error_entry_for_setup(hass, entry)
+    assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+def test_prepare_migration_error_entry_noop_when_not_migration_error(
+    hass: HomeAssistant,
+) -> None:
+    """Compatibility helper leaves non-migration-error entries unchanged."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert entry.state is ConfigEntryState.NOT_LOADED
+
+    _async_prepare_migration_error_entry_for_setup(hass, entry)
+    assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_repair_flow_uses_migration_error_compatibility_helper(
+    hass: HomeAssistant,
+) -> None:
+    """Successful repair prepares MIGRATION_ERROR via the compatibility helper."""
+    assert await async_setup_component(hass, "repairs", {})
+    entry = await _create_migration_error_entry(hass)
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
+    flow_manager = hass.data["repairs"]["flow_manager"]
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.repairs._async_prepare_migration_error_entry_for_setup",
+            wraps=_async_prepare_migration_error_entry_for_setup,
+        ) as prepare_helper,
+    ):
+        result = await flow_manager.async_init(
+            DOMAIN, data={"issue_id": invalid_legacy_url_issue_id(entry.entry_id)}
+        )
+        result = await flow_manager.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "good_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    prepare_helper.assert_called_once_with(hass, entry)
+    assert entry.state is ConfigEntryState.LOADED
 
 
 async def test_async_create_fix_flow_unknown_issue() -> None:
