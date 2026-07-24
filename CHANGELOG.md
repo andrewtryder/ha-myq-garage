@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.3.0...v1.4.0) (2026-07-24)
+
+
+### Features
+
+* add entity translations, icons, and workflow security checks ([#28](https://github.com/andrewtryder/ha-myq-garage/issues/28)) ([bf6219a](https://github.com/andrewtryder/ha-myq-garage/commit/bf6219a233a180a619732a2dcf2b539f84185db5))
+* add reconfigure, repair issue, and redacted diagnostics ([#26](https://github.com/andrewtryder/ha-myq-garage/issues/26)) ([2b70b0b](https://github.com/andrewtryder/ha-myq-garage/commit/2b70b0bea9a0852a61f7cd680b4e99c64ebaa937))
+* allow manual removal of stale garage devices ([#27](https://github.com/andrewtryder/ha-myq-garage/issues/27)) ([057dbe9](https://github.com/andrewtryder/ha-myq-garage/commit/057dbe991605c1a8be0ba9546b53860d9a4230c8))
+* extract myq-garage-api package for dependency transparency ([#29](https://github.com/andrewtryder/ha-myq-garage/issues/29)) ([4e797d6](https://github.com/andrewtryder/ha-myq-garage/commit/4e797d62991f7b344580830f7ed4bc72aed2d4f2))
+
+
+### Bug Fixes
+
+* require /info verification for identified reauth ([#24](https://github.com/andrewtryder/ha-myq-garage/issues/24)) ([c99790c](https://github.com/andrewtryder/ha-myq-garage/commit/c99790c3a80137bebfc55b9eebabacdee8345061))
+
 ## [1.3.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.2.0...v1.3.0) (2026-07-24)
 
 
