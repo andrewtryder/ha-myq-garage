@@ -5,20 +5,19 @@ rules:
     comment: Integration does not register any service actions.
   appropriate-polling: done
   brands:
-    status: exempt
+    status: done
     comment: >-
-      Official brands no longer accepts custom-integration icons
-      (HA 2026.3+ serves them from the integration itself). Local
-      assets are shipped under custom_components/myq_garage/brand/.
+      Local brand assets are shipped under custom_components/myq_garage/brand/
+      (the supported mechanism for modern custom integrations).
   common-modules: done
   config-flow: done
   config-flow-test-coverage: done
   dependency-transparency:
-    status: todo
+    status: exempt
     comment: >-
-      Client/models live in packages/myq-garage-api (MIT) with publish-api.yml
-      trusted-publisher workflow. First PyPI release of myq-garage-api==0.1.0
-      is still required before hassfest can validate the manifest pin.
+      Standalone HACS custom integration. The small API client and response
+      models are integration-owned code shipped directly under
+      custom_components/myq_garage and do not require an external dependency.
   docs-actions:
     status: exempt
     comment: Integration does not register any service actions.
@@ -58,13 +57,36 @@ rules:
   test-coverage: done
 
   # Gold
+  devices: done
   diagnostics: done
+  discovery:
+    status: exempt
+    comment: Integration is not discoverable; configuration is manual.
   discovery-update-info:
     status: exempt
     comment: Integration is not discoverable; configuration is manual.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices: done
+  entity-category:
+    status: exempt
+    comment: >-
+      Only primary garage-door cover entities are created; there are no
+      config or diagnostic entities that would require an entity category.
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: exempt
+    comment: >-
+      Only primary garage-door cover entities are created; none should be
+      disabled by default.
   entity-translations: done
   exception-translations: done
-  icons: done
+  icon-translations: done
   reconfiguration-flow: done
   repair-issues: done
   stale-devices: done
