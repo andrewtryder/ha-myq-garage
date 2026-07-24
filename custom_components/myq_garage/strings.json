@@ -22,6 +22,18 @@
         "data_description": {
           "api_key": "The new API key issued by your MyQ Garage companion API."
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure MyQ Garage",
+        "description": "Update the API URL and API key for this MyQ Garage installation.",
+        "data": {
+          "url": "API URL",
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "url": "The base URL of your MyQ Garage companion API. Must use the http or https scheme and must not contain a username or password.",
+          "api_key": "The API key issued by your MyQ Garage companion API."
+        }
       }
     },
     "error": {
@@ -34,6 +46,7 @@
     "abort": {
       "already_configured": "This MyQ Garage installation is already configured.",
       "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "Reconfiguration was successful.",
       "wrong_account": "The provided API key belongs to a different MyQ Garage installation than the one being reauthenticated."
     }
   },
@@ -52,6 +65,38 @@
     },
     "error": {
       "invalid_scan_interval": "Scan interval must be between 10 and 3600 seconds."
+    }
+  },
+  "issues": {
+    "invalid_legacy_url": {
+      "title": "Invalid MyQ Garage API URL",
+      "description": "The stored API URL `{url}` is invalid and could not be migrated. Use the repair flow to enter a valid URL and API key, or remove the integration."
+    }
+  },
+  "repairs": {
+    "confirm": {
+      "title": "Fix MyQ Garage configuration",
+      "description": "Enter a valid API URL and API key to repair this configuration entry.",
+      "data": {
+        "url": "API URL",
+        "api_key": "API Key"
+      },
+      "data_description": {
+        "url": "The base URL of your MyQ Garage companion API. Must use the http or https scheme and must not contain a username or password.",
+        "api_key": "The API key issued by your MyQ Garage companion API."
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the MyQ API.",
+      "cannot_verify_account": "Could not verify that this API key belongs to the configured MyQ Garage installation.",
+      "invalid_auth": "Invalid API Key.",
+      "invalid_url": "The API URL must use http or https, include a hostname, and must not contain a username or password.",
+      "unknown": "Unexpected error occurred.",
+      "wrong_account": "The provided API key belongs to a different MyQ Garage installation."
+    },
+    "abort": {
+      "entry_missing": "The MyQ Garage configuration entry no longer exists.",
+      "recreate_failed": "Could not recreate the MyQ Garage configuration entry."
     }
   }
 }

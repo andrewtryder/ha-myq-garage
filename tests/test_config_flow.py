@@ -948,3 +948,401 @@ async def test_reauth_unidentified_entry_unsupported_info_succeeds(
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_API_KEY] == "good_api_key"
     assert entry.unique_id is None
+
+
+async def test_reconfigure_flow_success(hass: HomeAssistant) -> None:
+    """Test reconfigure updates URL and API key for an existing entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://old-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://new-api.example.com/",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_URL] == "https://new-api.example.com"
+    assert entry.data[CONF_API_KEY] == "new_api_key"
+    assert entry.unique_id == "installation-123"
+
+
+async def test_reconfigure_flow_wrong_account_aborts(hass: HomeAssistant) -> None:
+    """Test reconfigure rejects a key for a different installation."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-999"},
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "someone_elses_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_account"
+    assert entry.data[CONF_API_KEY] == "old_api_key"
+
+
+async def test_reconfigure_flow_invalid_url(hass: HomeAssistant) -> None:
+    """Test reconfigure rejects an invalid URL without updating the entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_URL: "https://myq-api.example.com/?token=secret",
+            CONF_API_KEY: "new_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_url"}
+    assert entry.data[CONF_API_KEY] == "old_api_key"
+
+
+async def test_reconfigure_flow_duplicate_url_aborts(hass: HomeAssistant) -> None:
+    """Test reconfigure aborts when the new URL belongs to another entry."""
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://other-api.example.com",
+            CONF_API_KEY: "other_key",
+        },
+    )
+    existing.add_to_hass(hass)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_URL: "https://other-api.example.com",
+            CONF_API_KEY: "new_api_key",
+        },
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_reconfigure_flow_connection_error(hass: HomeAssistant) -> None:
+    """Test reconfigure surfaces connection failures."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=MyQGarageConnectionError("offline"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_reconfigure_flow_unknown_error(hass: HomeAssistant) -> None:
+    """Test reconfigure surfaces unexpected failures."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    with patch(
+        "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "unknown"}
+
+
+async def test_reconfigure_flow_adopts_stable_id(hass: HomeAssistant) -> None:
+    """Test reconfigure adopts a stable id for an unidentified entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+    assert entry.unique_id is None
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.unique_id == "installation-123"
+
+
+async def test_reconfigure_flow_reloads_unloaded_entry(hass: HomeAssistant) -> None:
+    """Test reconfigure schedules reload when the entry is not loaded."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id="installation-123",
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value={"installation_id": "installation-123"},
+        ),
+        patch(
+            "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch.object(
+            hass.config_entries,
+            "async_schedule_reload",
+        ) as mock_reload,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    mock_reload.assert_called_once_with(entry.entry_id)
+
+
+async def test_reconfigure_flow_without_stable_id(hass: HomeAssistant) -> None:
+    """Test reconfigure succeeds without adopting a unique id."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        data={
+            CONF_URL: "https://myq-api.example.com",
+            CONF_API_KEY: "old_api_key",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.myq_garage.client.MyQGarageClient.get_devices",
+        return_value=MOCK_DEVICE_DATA,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+
+    with (
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_devices",
+            return_value=MOCK_DEVICE_DATA,
+        ),
+        patch(
+            "custom_components.myq_garage.config_flow.MyQGarageClient.get_info",
+            return_value=None,
+        ),
+        patch.object(hass.config_entries, "async_schedule_reload") as mock_reload,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_URL: "https://myq-api.example.com",
+                CONF_API_KEY: "new_api_key",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_API_KEY] == "new_api_key"
+    assert entry.unique_id is None
+    mock_reload.assert_not_called()

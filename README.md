@@ -54,13 +54,16 @@ Only one config entry is allowed per API URL.
 
 The integration polls your API every **30 seconds** by default. To change this, go to **Settings → Devices & Services → MyQ Garage → Configure** and set **Scan interval (seconds)** (allowed range: 10–3600).
 
+To change the API URL or API key later, use **Settings → Devices & Services → MyQ Garage → ⋮ → Reconfigure**.
+
 ## Data updates
 
 - All device state comes from polling your companion API's `GET /devices` endpoint on the configured scan interval; there is no push/webhook support.
 - Every poll replaces the full set of known devices. If your API stops returning a device (for example, it was removed from your account), the corresponding Home Assistant entity becomes **unavailable** rather than showing a stale state. If a new device appears in a later poll, a cover entity is created automatically without reloading the integration.
 - Changing the scan interval in the options flow takes effect immediately, without needing to reload the integration or restart Home Assistant.
 - If your API key is revoked or expires, Home Assistant will prompt you to reauthenticate (**Settings → Devices & Services → MyQ Garage → Reconfigure**) rather than repeatedly retrying with a bad key.
-
+- Download diagnostics from the integration page (**Download diagnostics**) when filing issues; the API key is redacted automatically.
+- If an older config entry has an invalid stored URL that cannot be migrated, Home Assistant creates a repair issue with a guided fix flow.
 ## API contract
 
 This integration expects your companion API to expose:

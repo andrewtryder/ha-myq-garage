@@ -57,3 +57,11 @@ rules:
   parallel-updates: done
   reauthentication-flow: done
   test-coverage: done
+
+  # Gold
+  diagnostics: done
+  discovery-update-info:
+    status: exempt
+    comment: Integration is not discoverable; configuration is manual.
+  reconfiguration-flow: done
+  repair-issues: done
