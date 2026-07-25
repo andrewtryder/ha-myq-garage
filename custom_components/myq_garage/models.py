@@ -76,14 +76,14 @@ def parse_devices(raw_devices: object) -> dict[str, MyQGarageDevice]:
 
     devices: dict[str, MyQGarageDevice] = {}
 
-    for raw in raw_devices:
+    for index, raw in enumerate(raw_devices):
         if not isinstance(raw, dict):
-            _LOGGER.warning("Skipping device record that is not an object: %r", raw)
+            _LOGGER.warning("Skipping non-object device record at index %d", index)
             continue
 
         raw_device_id = raw.get("id")
         if not isinstance(raw_device_id, str) or not raw_device_id.strip():
-            _LOGGER.warning("Skipping device with missing or invalid id: %s", raw)
+            _LOGGER.warning("Skipping device with invalid id at index %d", index)
             continue
         device_id = raw_device_id.strip()
 
