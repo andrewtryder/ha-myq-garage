@@ -1,5 +1,7 @@
 """Tests for MyQ Garage device payload validation."""
 
+import logging
+
 import pytest
 
 from custom_components.myq_garage.models import (
@@ -8,6 +10,8 @@ from custom_components.myq_garage.models import (
     extract_stable_id,
     parse_devices,
 )
+
+_SENTINEL_SECRET = "SECRET_TOKEN_NEVER_LOG_ME"
 
 
 def test_extract_stable_id_valid() -> None:
@@ -58,17 +62,30 @@ def test_parse_devices_valid() -> None:
     assert devices["door_2"].is_closed is False
 
 
-def test_parse_devices_missing_id_is_skipped() -> None:
+def test_parse_devices_missing_id_is_skipped(caplog: pytest.LogCaptureFixture) -> None:
     """Test records with no id are logged and skipped, not defaulted."""
-    devices = parse_devices(
-        [
-            {"name": "No ID Door", "status": "closed"},
-            {"id": "", "name": "Empty ID Door", "status": "closed"},
-            {"id": "door_1", "name": "Main Garage Door", "status": "closed"},
-        ]
-    )
+    with caplog.at_level(logging.WARNING):
+        devices = parse_devices(
+            [
+                {
+                    "name": "No ID Door",
+                    "status": "closed",
+                    "token": _SENTINEL_SECRET,
+                },
+                {
+                    "id": "",
+                    "name": "Empty ID Door",
+                    "status": "closed",
+                    "email": _SENTINEL_SECRET,
+                },
+                {"id": "door_1", "name": "Main Garage Door", "status": "closed"},
+            ]
+        )
 
     assert set(devices) == {"door_1"}
+    assert "Skipping device with invalid id at index 0" in caplog.text
+    assert "Skipping device with invalid id at index 1" in caplog.text
+    assert _SENTINEL_SECRET not in caplog.text
 
 
 def test_parse_devices_strips_id_whitespace() -> None:
@@ -129,10 +146,18 @@ def test_parse_devices_rejects_non_list_payload() -> None:
         parse_devices({"id": "door_1", "name": "Main Garage Door"})
 
 
-def test_parse_devices_skips_non_object_records() -> None:
+def test_parse_devices_skips_non_object_records(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Test non-object entries in the list are logged and skipped."""
-    devices = parse_devices(
-        ["not-a-device", {"id": "door_1", "name": "Main Garage Door", "status": "open"}]
-    )
+    with caplog.at_level(logging.WARNING):
+        devices = parse_devices(
+            [
+                f"not-a-device-{_SENTINEL_SECRET}",
+                {"id": "door_1", "name": "Main Garage Door", "status": "open"},
+            ]
+        )
 
     assert set(devices) == {"door_1"}
+    assert "Skipping non-object device record at index 0" in caplog.text
+    assert _SENTINEL_SECRET not in caplog.text

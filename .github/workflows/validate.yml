@@ -174,6 +174,39 @@ jobs:
         run: |
           coverage report --include="*/config_flow.py" -m --fail-under=100
 
+  validate-tests-minimum:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        python-version: ["3.14"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements_test.minimum.lock.txt
+
+      - name: Install minimum Home Assistant dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements_test.minimum.lock.txt
+
+      - name: Run Pytest against declared minimum Home Assistant
+        run: PYTHONPATH=. pytest
+
+      - name: Enforce 100% config_flow.py coverage
+        run: |
+          coverage report --include="*/config_flow.py" -m --fail-under=100
+
   validate-workflows:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

@@ -44,8 +44,17 @@ python3 -m venv .venv
 uv pip compile requirements_test.txt -o requirements_test.lock.txt \
  --python-version 3.14.2 --python-platform linux --generate-hashes
 ```
-Required PR CI installs with `pip install --require-hashes -r requirements_test.lock.txt`.
+
+The declared minimum Home Assistant version (see `hacs.json`) is exercised by a separate CI job using:
+```bash
+uv pip compile requirements_test.minimum.txt -o requirements_test.minimum.lock.txt \
+ --python-version 3.14.2 --python-platform linux --generate-hashes
+```
+
+Required PR CI installs with `pip install --require-hashes -r requirements_test.lock.txt` (current) and `pip install --require-hashes -r requirements_test.minimum.lock.txt` (minimum).
 Keep the Ruff revision in `.pre-commit-config.yaml` aligned with the locked `ruff` version.
+
+When regenerating either lockfile, re-evaluate Dependabot alerts for Home Assistant-pinned transitive packages (for example Pillow and PyJWT). Those packages are test-only and are not shipped with the HACS integration (`manifest.json` `requirements: []`).
 ### Formatting and Linting (Ruff)
 This project enforces code styles and format rules using `ruff`. Run these checks locally before committing changes:
 ```bash
