@@ -253,36 +253,14 @@ automation:
 
 ## Local Development
 
-This repository includes optional Docker-based tooling for testing the integration end-to-end. HACS users do not need these files.
-
-| Path | Purpose |
-|------|---------|
-| `docker-compose.yml` | Runs Home Assistant and a mock API locally |
-| `ha-dev/config/configuration.yaml` | Minimal Home Assistant config for dev |
-| `ha-dev/mock_api/` | Mock `/devices` endpoint used during local testing |
-
-### Quick start
-
 ```bash
-docker compose up -d
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install --require-hashes -r requirements_test.lock.txt
+PYTHONPATH=. .venv/bin/pytest
 ```
 
-Open Home Assistant at http://localhost:8123, then add the **MyQ Garage** integration with:
-
-- **API URL**: `http://mock-api:8080`
-- **API Key**: `dev-api-key`
-
-The custom component is bind-mounted from this repo, so code changes are picked up after restarting the Home Assistant container.
-
-```bash
-docker compose restart homeassistant
-docker compose logs -f homeassistant
-docker compose down
-```
-
-Home Assistant runtime data (`.storage/`, databases, logs) is gitignored under `ha-dev/config/` and is created locally when you run Docker.
-
-Unit tests use `pytest` and do not require Docker. See `AGENTS.md` for linting, formatting, and test commands.
+See [AGENTS.md](AGENTS.md) for linting, formatting, type-checking, and hassfest commands.
 
 ## Contributing
 
