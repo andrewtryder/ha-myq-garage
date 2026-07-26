@@ -256,7 +256,7 @@ automation:
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/pip install --require-hashes -r requirements_test.lock.txt
+.venv/bin/pip install -r requirements_test.txt
 PYTHONPATH=. .venv/bin/pytest
 ```
 
@@ -264,4 +264,4 @@ See [AGENTS.md](AGENTS.md) for linting, formatting, type-checking, and hassfest 
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for conventional commits, squash-only merge guidance, Release Please token setup, and how to refresh the test dependency lockfile.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventional commits, squash-only merge guidance, and Release Please token setup.

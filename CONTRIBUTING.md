@@ -19,40 +19,15 @@ Without `RELEASE_PLEASE_TOKEN`, the workflow falls back to `github.token`, which
 
 ## Test dependencies
 
-- `requirements_test.txt` — short, unpinned input list
-- `requirements_test.lock.txt` — committed lockfile used by required PR CI (current Home Assistant patch)
-- `requirements_test.minimum.txt` — overlay pins for the declared minimum Home Assistant version in `hacs.json`
-- `requirements_test.minimum.lock.txt` — committed lockfile used by the minimum-version PR CI job
-
-After changing `requirements_test.txt`, regenerate the current lockfile for Linux CI:
+Test and tooling dependencies live in `requirements_test.txt` with loose version ranges. Set up a local environment with:
 
 ```bash
-uv pip compile requirements_test.txt -o requirements_test.lock.txt \
-  --python-version 3.14.2 --python-platform linux --generate-hashes
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements_test.txt
+.venv/bin/pre-commit install
 ```
 
-After changing `requirements_test.minimum.txt` (or whenever the declared minimum Home Assistant version changes), regenerate the minimum lockfile:
+CI installs the same way, so no lockfile regeneration step is needed.
 
-```bash
-uv pip compile requirements_test.minimum.txt -o requirements_test.minimum.lock.txt \
-  --python-version 3.14.2 --python-platform linux --generate-hashes
-```
-
-Keep `homeassistant` and `pytest-homeassistant-custom-component` in `requirements_test.minimum.txt` paired: each `pytest-homeassistant-custom-component` release pins exactly one Home Assistant version.
-
-Required PR CI installs with:
-
-- `pip install --require-hashes -r requirements_test.lock.txt` (current)
-- `pip install --require-hashes -r requirements_test.minimum.lock.txt` (declared minimum)
-
-Keep the Ruff revision in `.pre-commit-config.yaml` aligned with the locked `ruff` version.
-
-## Test-only dependency vulnerability exceptions
-
-Some transitive packages pinned by Home Assistant (notably `Pillow` and `PyJWT`) may appear in Dependabot alerts even though this integration ships with an empty `manifest.json` `requirements` list. Those packages are installed only for CI/tests and are not distributed to HACS users.
-
-When dismissing such alerts as `tolerable_risk`:
-
-1. Note that the package is test-only and exact-pinned by the locked Home Assistant version.
-2. Include an explicit review condition: **recheck whenever `homeassistant==` in `requirements_test.lock.txt` or `requirements_test.minimum.lock.txt` changes**.
-3. Re-evaluate the same advisories as part of every Home Assistant / lockfile refresh.
+Keep the Ruff revision in `.pre-commit-config.yaml` aligned with the `ruff` pin in `requirements_test.txt`.

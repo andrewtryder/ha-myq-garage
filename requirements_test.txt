@@ -1,16 +1,8 @@
-# Unpinned test/tooling dependency inputs.
-# Compile a reproducible lockfile after changing this file (target Linux CI):
-#   uv pip compile requirements_test.txt -o requirements_test.lock.txt \
-#     --python-version 3.14.2 --python-platform linux --generate-hashes
-# CI pull requests install from requirements_test.lock.txt; the scheduled
-# canary job installs from this file to catch upcoming ecosystem breakages.
-# The declared minimum Home Assistant lane uses requirements_test.minimum.txt
-# and requirements_test.minimum.lock.txt.
-pytest
-pytest-homeassistant-custom-component
-pytest-cov
-pytest-asyncio
-aresponses
-ruff
-pre-commit
-mypy
+pytest>=9.0.0
+pytest-homeassistant-custom-component>=0.13.316,<0.14.0
+pytest-cov>=7.0.0
+pytest-asyncio>=1.3.0,<2.0.0
+aresponses>=3.0.0,<4.0.0
+ruff==0.16.0
+pre-commit==4.6.1
+mypy>=1.0.0
