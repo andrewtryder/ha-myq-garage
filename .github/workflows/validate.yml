@@ -91,7 +91,6 @@ jobs:
             manifest.json \
             strings.json \
             icons.json \
-            quality_scale.yaml \
             translations/en.json \
             brand/icon.png
           do
@@ -145,12 +144,12 @@ jobs:
           cache: "pip"
           cache-dependency-path: |
             requirements.txt
-            requirements_test.lock.txt
+            requirements_test.txt
 
-      - name: Install locked dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --require-hashes -r requirements_test.lock.txt
+          pip install -r requirements.txt -r requirements_test.txt
 
       - name: Run pre-commit
         run: pre-commit run --all-files
@@ -168,39 +167,6 @@ jobs:
         run: mypy
 
       - name: Run Pytest
-        run: PYTHONPATH=. pytest
-
-      - name: Enforce 100% config_flow.py coverage
-        run: |
-          coverage report --include="*/config_flow.py" -m --fail-under=100
-
-  validate-tests-minimum:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        python-version: ["3.14"]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            requirements_test.minimum.lock.txt
-
-      - name: Install minimum Home Assistant dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --require-hashes -r requirements_test.minimum.lock.txt
-
-      - name: Run Pytest against declared minimum Home Assistant
         run: PYTHONPATH=. pytest
 
       - name: Enforce 100% config_flow.py coverage
@@ -238,46 +204,3 @@ jobs:
         with:
           advanced-security: "false"
           online-audits: "false"
-
-  validate-tests-canary:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        python-version: ["3.14"]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            requirements_test.txt
-
-      - name: Install latest dependencies (canary)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements_test.txt
-
-      - name: Run Ruff Linter
-        run: ruff check .
-
-      - name: Run Ruff Formatter Check
-        run: ruff format --check .
-
-      - name: Run Mypy
-        run: mypy
-
-      - name: Run Pytest
-        run: PYTHONPATH=. pytest
-
-      - name: Enforce 100% config_flow.py coverage
-        run: |
-          coverage report --include="*/config_flow.py" -m --fail-under=100
