@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/andrewtryder/ha-myq-garage/compare/v1.5.0...v1.5.1) (2026-07-26)
+
+
+### Bug Fixes
+
+* redact malformed device logs and exercise minimum HA ([#43](https://github.com/andrewtryder/ha-myq-garage/issues/43)) ([f819aba](https://github.com/andrewtryder/ha-myq-garage/commit/f819aba43ee26dbebdf9614d7f427e01259befca))
+
 ## [1.5.0](https://github.com/andrewtryder/ha-myq-garage/compare/v1.4.0...v1.5.0) (2026-07-24)
 
 
