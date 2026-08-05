@@ -396,7 +396,7 @@ async def test_remove_config_entry_device_when_unloaded(
     hass: HomeAssistant,
 ) -> None:
     """Unloaded entries allow device removal without runtime data."""
-    from homeassistant.helpers.device_registry import DeviceEntry
+    from homeassistant.helpers import device_registry as dr
 
     from custom_components.myq_garage import async_remove_config_entry_device
 
@@ -410,5 +410,9 @@ async def test_remove_config_entry_device_when_unloaded(
     )
     entry.add_to_hass(hass)
 
-    device_entry = DeviceEntry(identifiers={(DOMAIN, "door_1")})
+    device_registry = dr.async_get(hass)
+    device_entry = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "door_1")},
+    )
     assert await async_remove_config_entry_device(hass, entry, device_entry)
