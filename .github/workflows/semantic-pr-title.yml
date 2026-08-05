@@ -1,0 +1,45 @@
+name: Semantic PR title
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+permissions: {}
+
+jobs:
+  semantic-pr-title:
+    name: Semantic PR title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Validate pull request title
+        uses: step-security/action-semantic-pull-request@75d2dd5deafa3e9fccc1626ecd58d076ed1d2c79 # v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" must begin with a lowercase letter.
+            Use a title such as:
+              feat: add cover availability sensor
+              fix: normalize companion API URLs
+              docs: clarify HACS installation
+              chore: refresh test dependency pins

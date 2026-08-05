@@ -11,6 +11,14 @@ This project uses [release-please](https://github.com/googleapis/release-please)
 
 **Merge strategy:** use **squash-only** merges with a conventional PR title. Disable merge commits and rebase merges on `main`. One conventional commit per merged PR keeps the release-please changelog free of duplicate feature/merge entries.
 
+PR titles are validated in CI (`Semantic PR title`). Locally, install both pre-commit hook types so commit messages are checked before push:
+
+```bash
+.venv/bin/pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+Scopes are optional (`feat(cover): …` is fine; `feat: …` is also fine).
+
 ## Release Please token
 
 Configure a repository secret named `RELEASE_PLEASE_TOKEN` with a narrowly scoped GitHub App installation token (or fine-grained PAT) that can open and update pull requests. Release Please uses this instead of the default `GITHUB_TOKEN` so its release PR updates still trigger the Validate workflow.
@@ -25,7 +33,7 @@ Test and tooling dependencies live in `requirements_test.txt` with loose version
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -r requirements_test.txt
-.venv/bin/pre-commit install
+.venv/bin/pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 CI installs the same way, so no lockfile regeneration step is needed.

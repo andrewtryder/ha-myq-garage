@@ -29,6 +29,8 @@ You **must** follow the [Conventional Commits](https://www.conventionalcommits.o
 *   `docs: <description>`, `chore: <description>`, `test: <description>`, `refactor: <description>`: For non-code changes (does not bump version).
 *   Add `!` after the type/scope for breaking changes (e.g., `feat!: <description>`), which will bump the major version.
 
+PR titles must also follow Conventional Commits (enforced by the `Semantic PR title` workflow). Scopes are optional.
+
 ## Local Development and Tooling
 
 ### Python Environment
@@ -37,6 +39,7 @@ To test changes, you can set up a local virtual environment:
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -r requirements_test.txt
+.venv/bin/pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 CI installs the same way with `pip install -r requirements.txt -r requirements_test.txt`.
@@ -53,8 +56,10 @@ This project enforces code styles and format rules using `ruff`. Run these check
 ```
 
 ### Pre-commit Hooks
-The project uses `pre-commit`. Always ensure you run pre-commit or ensure hooks pass:
+The project uses `pre-commit` for formatting/lint and Conventional Commit message checks. Install both hook types, then run:
+
 ```bash
+.venv/bin/pre-commit install --hook-type pre-commit --hook-type commit-msg
 .venv/bin/pre-commit run --all-files
 ```
 
