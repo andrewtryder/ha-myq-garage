@@ -383,7 +383,12 @@ async def test_remove_config_entry_device_allows_absent_device(
         await hass.async_block_till_done()
 
     device_registry = dr.async_get(hass)
-    present = device_registry.async_get_device(identifiers={(DOMAIN, "door_1")})
+    if hasattr(device_registry, "async_get_device_by_identifier"):
+        present = device_registry.async_get_device_by_identifier(
+            (DOMAIN, "door_1"), entry.entry_id
+        )
+    else:
+        present = device_registry.async_get_device(identifiers={(DOMAIN, "door_1")})
     assert present is not None
     assert not await async_remove_config_entry_device(hass, entry, present)
 
