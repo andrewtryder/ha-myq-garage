@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **Archived:** This project is no longer maintained. We now use [bvdcode/home-assistant-myq](https://github.com/bvdcode/home-assistant-myq) as our myQ solution.
+
 <p align="center">
   <img src="custom_components/myq_garage/brand/icon.png" alt="MyQ Garage" width="128">
 </p>
